@@ -87,7 +87,7 @@ export default function Login() {
         <Button title="Logga in" testID="login-submit-button" onPress={submit} loading={loading} />
         <Pressable testID="go-to-register-link" onPress={() => router.push("/register")} style={styles.link}>
           <Text style={styles.linkText}>
-            Inget konto? <Text style={styles.linkStrong}>Registrera företag</Text>
+            Inget konto? <Text style={styles.linkStrong}>registrera dig här</Text>
           </Text>
         </Pressable>
       </KeyboardAwareScrollView>

@@ -2,16 +2,19 @@ import asyncio
 import logging
 import os
 import re
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import parse_qs
 
 import bcrypt
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -195,18 +198,30 @@ async def list_cities():
 # ---------------------------------------------------------------- products
 @api.get("/categories")
 async def categories(_: dict = Depends(current_user)):
-    present = set(await db.products.distinct("category"))
-    return [label for _, label in scraper.CATEGORIES if label in present]
+    tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
+    counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
+        {"$match": {"active": {"$ne": False}}}, {"$unwind": "$groups"}, {"$group": {"_id": "$groups", "n": {"$sum": 1}}}])}
+    sub_counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
+        {"$match": {"active": {"$ne": False}}}, {"$unwind": "$categories"}, {"$group": {"_id": "$categories", "n": {"$sum": 1}}}])}
+    out = []
+    for g in tree.get("groups", []):
+        if not counts.get(g["slug"]):
+            continue
+        children = [{**c, "count": sub_counts[c["slug"]]} for c in g["children"] if sub_counts.get(c["slug"])]
+        out.append({"slug": g["slug"], "name": g["name"], "count": counts[g["slug"]], "children": children})
+    return out
 
 
 @api.get("/products")
 async def products(
-    q: str = "", category: str = "", page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
+    q: str = "", group: str = "", category: str = "", page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
     _: dict = Depends(current_user),
 ):
-    flt: dict = {}
+    flt: dict = {"active": {"$ne": False}}
+    if group:
+        flt["groups"] = group
     if category:
-        flt["category"] = category
+        flt["categories"] = category
     if q.strip():
         rx = {"$regex": re.escape(q.strip()), "$options": "i"}
         flt["$or"] = [{"name": rx}, {"part_no": rx}]
@@ -226,7 +241,7 @@ async def product(part_no: str, _: dict = Depends(current_user)):
 
 
 # ---------------------------------------------------------------- orders
-def order_email_html(order: dict) -> str:
+def order_email_html(order: dict, confirm_url: str) -> str:
     rows = "".join(
         f'<tr><td style="padding:8px;border-bottom:1px solid #ddd">{escape(i["part_no"])}</td>'
         f'<td style="padding:8px;border-bottom:1px solid #ddd">{escape(i["name"])}</td>'
@@ -255,13 +270,19 @@ def order_email_html(order: dict) -> str:
         '<th align="left" style="padding:8px">Storlek</th><th align="right" style="padding:8px">Antal</th></tr>'
         f'{rows}</table>'
         f'<p style="margin:16px 0 4px"><strong>Kommentar / önskat leveransdatum:</strong></p><p style="margin:0">{comment}</p>'
+        '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px"><tr>'
+        f'<td style="background:#FF9900;border-radius:6px"><a href="{escape(confirm_url)}" '
+        'style="display:inline-block;padding:14px 28px;color:#000;font-weight:bold;text-decoration:none;'
+        'text-transform:uppercase;letter-spacing:1px">Bekräfta order</a></td></tr></table>'
+        '<p style="font-size:13px;color:#555;margin:8px 0 0">Öppnar en sida där du kan skicka ett svar till beställaren, '
+        't.ex. när leverans sker.</p>'
         f'<p style="font-size:12px;color:#888;margin-top:24px">Skickat av {escape(EMAIL_FROM_NAME)}.</p>'
         '</td></tr></table>'
     )
 
 
 @api.post("/orders")
-async def create_order(body: OrderIn, user: dict = Depends(current_user)):
+async def create_order(body: OrderIn, request: Request, user: dict = Depends(current_user)):
     items = []
     for it in body.items:
         p = await db.products.find_one({"part_no": it.part_no}, {"_id": 0})
@@ -288,9 +309,10 @@ async def create_order(body: OrderIn, user: dict = Depends(current_user)):
                      "org_number": user.get("org_number", ""), "city_name": await city_name(user.get("city_id"))},
         "items": items, "comment": (body.comment or "").strip(), "created_at": now_iso(),
         "email_status": "pending", "sent_to": recipient,
+        "status": "new", "confirm_token": secrets.token_urlsafe(24), "replies": [],
     }
     subject = f"Beställning {order['order_number']} – {order['customer']['company']}"
-    html = order_email_html(order)
+    html = order_email_html(order, f"{public_base(request)}/api/order-reply/{order['confirm_token']}")
     try:
         assert_safe_email(subject, html)
     except ValueError:
@@ -300,17 +322,145 @@ async def create_order(body: OrderIn, user: dict = Depends(current_user)):
         await send_email(to=recipient, subject=subject, html=html, reply_to=user["email"])
         order["email_status"] = "sent"
     except Exception:
+        # Order is saved; tell the client so it can show a warning instead of retrying (avoids duplicates).
         order["email_status"] = "failed"
         await db.orders.update_one({"id": order["id"]}, {"$set": {"email_status": "failed"}})
-        raise HTTPException(502, "Beställningen sparades men mejlet kunde inte skickas. Försök igen eller kontakta administratören.")
+        order.pop("sent_to", None)
+        order.pop("confirm_token", None)
+        return order
     await db.orders.update_one({"id": order["id"]}, {"$set": {"email_status": "sent"}})
     order.pop("sent_to", None)
+    order.pop("confirm_token", None)
     return order
 
 
 @api.get("/orders")
 async def my_orders(user: dict = Depends(current_user)):
-    return await db.orders.find({"user_id": user["id"]}, {"_id": 0, "sent_to": 0}).sort("created_at", -1).to_list(200)
+    return await db.orders.find({"user_id": user["id"]}, {"_id": 0, "sent_to": 0, "confirm_token": 0}).sort("created_at", -1).to_list(200)
+
+
+# ---------------------------------------------------------------- order reply (link in order email)
+MAX_REPLIES = 10
+
+
+def public_base(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    return f"https://{host}"
+
+
+def reply_page(title: str, body: str) -> HTMLResponse:
+    return HTMLResponse(
+        '<!doctype html><html lang="sv"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{escape(title)}</title><style>'
+        'body{margin:0;background:#121212;color:#fff;font-family:Arial,Helvetica,sans-serif}'
+        '.w{max-width:560px;margin:0 auto;padding:24px}.bar{width:8px;height:28px;background:#FF9900;display:inline-block;'
+        'vertical-align:middle;margin-right:10px}h1{display:inline;font-size:26px;text-transform:uppercase;vertical-align:middle}'
+        '.c{background:#1C1C1E;border:1px solid #333;border-radius:8px;padding:16px;margin-top:16px}'
+        '.m{color:#8A8A8A;font-size:13px}.r{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2C2C2C;gap:12px}'
+        '.q{color:#FFCC00;font-weight:bold;white-space:nowrap}textarea{width:100%;box-sizing:border-box;min-height:140px;background:#2C2C2E;'
+        'color:#fff;border:1px solid #333;border-radius:8px;padding:12px;font-size:16px;font-family:inherit}'
+        'button{width:100%;margin-top:12px;background:#FF9900;color:#000;border:0;border-radius:8px;padding:16px;font-size:17px;'
+        'font-weight:bold;text-transform:uppercase;letter-spacing:1px}.ok{border-left:4px solid #4CAF50}.err{border-left:4px solid #F44336}'
+        '.rep{background:#2C2C2E;border-radius:6px;padding:10px;margin-top:8px;white-space:pre-wrap}'
+        f'</style></head><body><div class="w">{body}</div></body></html>'
+    )
+
+
+def order_block(order: dict) -> str:
+    rows = "".join(
+        f'<div class="r"><div>{escape(i["name"])}<div class="m">{escape(i["part_no"])}'
+        f'{"-" + escape(i["color_code"]) if i.get("color_code") else ""} · Storlek {escape(i["size"])}</div></div>'
+        f'<div class="q">{i["quantity"]} st</div></div>' for i in order["items"])
+    c = order["customer"]
+    comment = f'<p class="m" style="margin-top:12px">Kommentar: {escape(order["comment"])}</p>' if order.get("comment") else ""
+    return (f'<div class="c"><strong>{escape(c["company"])}</strong><div class="m">{escape(c["email"])} · '
+            f'{escape(c.get("phone") or "")}</div>{rows}{comment}</div>')
+
+
+def reply_email_html(order: dict, message: str) -> str:
+    rows = "".join(
+        f'<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd">{escape(i["part_no"])}'
+        f'{"-" + escape(i["color_code"]) if i.get("color_code") else ""}</td>'
+        f'<td style="padding:6px 8px;border-bottom:1px solid #ddd">{escape(i["name"])}</td>'
+        f'<td style="padding:6px 8px;border-bottom:1px solid #ddd">{escape(i["size"])}</td>'
+        f'<td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:right">{i["quantity"]}</td></tr>'
+        for i in order["items"])
+    return (
+        '<table role="presentation" width="100%" style="font-family:Arial,sans-serif;color:#111"><tr><td style="padding:24px">'
+        f'<h2 style="margin:0 0 8px">Din order {escape(order["order_number"])} är bekräftad</h2>'
+        '<p style="margin:0 0 8px"><strong>Meddelande från leverantören:</strong></p>'
+        f'<p style="margin:0 0 16px;padding:12px;background:#FFF4E0;border-left:4px solid #FF9900">'
+        f'{escape(message).replace(chr(10), "<br>")}</p>'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">'
+        '<tr style="background:#FF9900"><th align="left" style="padding:6px 8px">Artikelnr</th>'
+        '<th align="left" style="padding:6px 8px">Produkt</th><th align="left" style="padding:6px 8px">Storlek</th>'
+        f'<th align="right" style="padding:6px 8px">Antal</th></tr>{rows}</table>'
+        f'<p style="font-size:12px;color:#888;margin-top:24px">Skickat av {escape(EMAIL_FROM_NAME)}. '
+        'Du ser även svaret under Ordrar i appen.</p></td></tr></table>')
+
+
+async def _order_by_token(token: str) -> Optional[dict]:
+    if len(token) < 20:
+        return None
+    return await db.orders.find_one({"confirm_token": token}, {"_id": 0})
+
+
+def _reply_form(order: dict, token: str, error: str = "", message: str = "") -> HTMLResponse:
+    replies = "".join(f'<div class="rep">{escape(r["message"])}<div class="m">{escape(r["created_at"][:16].replace("T", " "))} UTC</div></div>'
+                      for r in order.get("replies", []))
+    prev = f'<div class="c ok"><strong>Tidigare svar</strong>{replies}</div>' if replies else ""
+    err = f'<div class="c err">{escape(error)}</div>' if error else ""
+    return reply_page(
+        f"Bekräfta order {order['order_number']}",
+        f'<span class="bar"></span><h1>Bekräfta order {escape(order["order_number"])}</h1>'
+        f'{order_block(order)}{prev}{err}'
+        f'<form method="post" action="/api/order-reply/{escape(token)}" class="c">'
+        '<label for="message"><strong>Svar till beställaren</strong></label>'
+        '<p class="m">T.ex. "Leverans sker om 15 min" eller "Levereras torsdag v.24".</p>'
+        f'<textarea id="message" name="message" maxlength="2000" required placeholder="Skriv ditt meddelande...">{escape(message)}</textarea>'
+        '<button type="submit">Bekräfta & skicka svar</button></form>')
+
+
+@api.get("/order-reply/{token}", response_class=HTMLResponse)
+async def order_reply_page(token: str):
+    order = await _order_by_token(token)
+    if not order:
+        return reply_page("Ordern hittades inte", '<div class="c err">Länken är ogiltig eller ordern finns inte längre.</div>')
+    return _reply_form(order, token)
+
+
+@api.post("/order-reply/{token}", response_class=HTMLResponse)
+async def order_reply_submit(token: str, request: Request):
+    order = await _order_by_token(token)
+    if not order:
+        return reply_page("Ordern hittades inte", '<div class="c err">Länken är ogiltig eller ordern finns inte längre.</div>')
+    form = parse_qs((await request.body()).decode("utf-8", "replace"))
+    message = (form.get("message", [""])[0]).strip()[:2000]
+    if not message:
+        return _reply_form(order, token, "Skriv ett meddelande innan du skickar.")
+    if len(order.get("replies", [])) >= MAX_REPLIES:
+        return _reply_form(order, token, "Maximalt antal svar för denna order är uppnått.", message)
+    subject = f"Orderbekräftelse {order['order_number']}"
+    html = reply_email_html(order, message)
+    try:
+        assert_safe_email(subject, html)
+    except ValueError:
+        return _reply_form(order, token, "Meddelandet innehåller otillåtna ord (t.ex. om kortuppgifter eller lösenord). Skriv om det.", message)
+    settings = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    try:
+        await send_email(to=order["customer"]["email"], subject=subject, html=html, reply_to=settings.get("order_email"))
+    except HTTPException:
+        return _reply_form(order, token, "Mejlet kunde inte skickas just nu. Försök igen om en stund.", message)
+    reply = {"message": message, "created_at": now_iso()}
+    await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply},
+                                                     "$set": {"status": "confirmed", "confirmed_at": reply["created_at"]}})
+    return reply_page(
+        "Svar skickat",
+        f'<span class="bar"></span><h1>Svar skickat</h1><div class="c ok">Ditt svar har skickats till '
+        f'<strong>{escape(order["customer"]["email"])}</strong> och ordern {escape(order["order_number"])} är markerad som bekräftad.'
+        f'<div class="rep">{escape(message)}</div></div>'
+        f'<p class="m" style="margin-top:16px"><a style="color:#FF9900" href="/api/order-reply/{escape(token)}">Skicka ytterligare ett svar</a></p>')
 
 
 # ---------------------------------------------------------------- admin
@@ -318,7 +468,7 @@ async def my_orders(user: dict = Depends(current_user)):
 async def get_settings(_: dict = Depends(admin_only)):
     s = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
     return {"order_email": s.get("order_email", ""), "catalog": {**scraper.status},
-            "product_count": await db.products.count_documents({})}
+            "product_count": await db.products.count_documents({"active": {"$ne": False}})}
 
 
 @api.put("/admin/settings")
@@ -410,7 +560,7 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(admin_only)):
 
 @api.get("/admin/orders")
 async def admin_orders(_: dict = Depends(admin_only)):
-    return await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return await db.orders.find({}, {"_id": 0, "confirm_token": 0}).sort("created_at", -1).to_list(500)
 
 
 app.include_router(api)
@@ -446,7 +596,7 @@ async def startup():
     if await db.cities.count_documents({}) == 0:
         for n in ["Stockholm", "Göteborg", "Malmö"]:
             await db.cities.insert_one({"id": str(uuid.uuid4()), "name": n})
-    if await db.products.count_documents({}) == 0:
+    if await db.products.count_documents({}) == 0 or not await db.settings.find_one({"id": "catalog_tree"}):
         asyncio.create_task(scraper.scrape_catalog(db))
 
 

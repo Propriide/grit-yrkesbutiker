@@ -12,22 +12,10 @@ logger = logging.getLogger(__name__)
 BASE = "https://www.blaklader.se"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; WorkwearOrderApp/1.0)"}
 
-# (slug, display name) — the categories pulled into the app
-CATEGORIES = [
-    ("jackor", "Jackor"),
-    ("byxor", "Byxor"),
-    ("hangselbyxor", "Hängselbyxor"),
-    ("trojor", "Tröjor"),
-    ("tshirts-langarmad-tshirt", "T-shirts"),
-    ("skjortor", "Skjortor"),
-    ("vastar", "Västar"),
-    ("shorts-piratbyxor", "Shorts"),
-    ("overaller", "Overaller"),
-    ("skyddsskor", "Skyddsskor"),
-    ("handskar", "Handskar"),
-    ("kepsar-mossor", "Kepsar & mössor"),
-]
-MAX_PAGES_PER_CATEGORY = 4
+ROOT_CATEGORY_ID = 11945  # "Alla produkter" on blaklader.se
+# Top-level groups in the same order as the Blåkläder menu
+GROUP_ORDER = ["overdelar", "underdelar", "understall", "underklader", "vattentata-plagg", "handskar", "arbetsskor", "tillbehor"]
+PAGE_SIZE = 15
 NEXT_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
 status = {"running": False, "last_run": None, "count": 0, "error": None}
@@ -47,7 +35,7 @@ def _strip_html(s: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", s).strip()
 
 
-def _parse_list_item(item: dict, category: str) -> dict:
+def _parse_list_item(item: dict) -> dict:
     inner = item["innerProduct"]
     variant_images = {}
     for v in inner.get("variants") or []:
@@ -68,9 +56,28 @@ def _parse_list_item(item: dict, category: str) -> dict:
         "price": inner.get("price"),
         "image_url": inner.get("imageUrl"),
         "colors": colors,
-        "category": category,
+        "category_ids": list(inner.get("categories") or []),
         "sizes": [],
     }
+
+
+def _build_tree(nav: dict) -> tuple[list[dict], dict[int, tuple[str, str | None]]]:
+    """Returns (groups, id_map). id_map: category id -> (group_slug, sub_slug|None)."""
+    nodes: dict[int, dict] = {}
+    for key in ("clothingCategory", "accessoriesCategory"):
+        for c in nav.get(key) or []:
+            if c.get("id") and c.get("slug"):
+                nodes[c["id"]] = {"id": c["id"], "name": c["name"], "slug": c["slug"], "parent": c.get("parentId")}
+    groups, id_map = [], {}
+    for g in sorted((n for n in nodes.values() if n["parent"] == ROOT_CATEGORY_ID),
+                    key=lambda n: GROUP_ORDER.index(n["slug"]) if n["slug"] in GROUP_ORDER else 99):
+        children = sorted((n for n in nodes.values() if n["parent"] == g["id"]), key=lambda n: n["name"])
+        groups.append({"slug": g["slug"], "name": g["name"],
+                       "children": [{"slug": ch["slug"], "name": ch["name"]} for ch in children]})
+        id_map[g["id"]] = (g["slug"], None)
+        for ch in children:
+            id_map[ch["id"]] = (g["slug"], ch["slug"])
+    return groups, id_map
 
 
 async def _fetch(client: httpx.AsyncClient, path: str) -> str:
@@ -98,33 +105,51 @@ async def scrape_catalog(db) -> int:
     products: dict[str, dict] = {}
     try:
         async with httpx.AsyncClient(headers=HEADERS, timeout=30, follow_redirects=True) as client:
-            for slug, label in CATEGORIES:
-                for page in range(1, MAX_PAGES_PER_CATEGORY + 1):
-                    try:
-                        data = _next_data(await _fetch(client, f"/sv/alla-produkter/{slug}?page={page}"))
-                        plm = data["props"]["pageProps"]["plm"]
-                    except Exception as e:
-                        logger.warning("Listing fetch failed %s p%s: %s", slug, page, e)
-                        break
-                    items = plm.get("productsList") or []
-                    for it in items:
-                        try:
-                            p = _parse_list_item(it, label)
-                            products.setdefault(p["part_no"], p)
-                        except Exception as e:
-                            logger.warning("Parse failed: %s", e)
-                    if not items or page * (plm.get("pageSize") or 15) >= (plm.get("total") or 0):
-                        break
+            home = _next_data(await _fetch(client, "/sv"))
+            groups, id_map = _build_tree(home["props"]["stores"]["generalStore"]["navigation"])
+            if not groups:
+                raise ValueError("Kunde inte läsa kategoriträdet från blaklader.se")
+
+            first = _next_data(await _fetch(client, "/sv/alla-produkter?page=1"))["props"]["pageProps"]["plm"]
+            pages = {1: first.get("productsList") or []}
+            total_pages = -(-(first.get("total") or 0) // (first.get("pageSize") or PAGE_SIZE))
             sem = asyncio.Semaphore(6)
+
+            async def fetch_page(n: int):
+                async with sem:
+                    try:
+                        plm = _next_data(await _fetch(client, f"/sv/alla-produkter?page={n}"))["props"]["pageProps"]["plm"]
+                        pages[n] = plm.get("productsList") or []
+                    except Exception as e:
+                        logger.warning("Listing page %s failed: %s", n, e)
+
+            await asyncio.gather(*[fetch_page(n) for n in range(2, total_pages + 1)])
+            for n in sorted(pages):
+                for it in pages[n]:
+                    try:
+                        p = _parse_list_item(it)
+                        products.setdefault(p["part_no"], p)
+                    except Exception as e:
+                        logger.warning("Parse failed: %s", e)
             await asyncio.gather(*[_fetch_sizes(client, sem, p) for p in products.values() if p.get("slug")])
 
         now = datetime.now(timezone.utc).isoformat()
         for i, p in enumerate(products.values()):
-            p["sort_index"] = i
-            p["updated_at"] = now
+            grp, subs = set(), set()
+            for cid in p.pop("category_ids"):
+                if cid in id_map:
+                    g, s = id_map[cid]
+                    grp.add(g)
+                    if s:
+                        subs.add(s)
+            p.update(groups=sorted(grp), categories=sorted(subs), sort_index=i, updated_at=now, active=True)
             if not p["sizes"]:
                 p["sizes"] = ["One size"]
-            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p}, upsert=True)
+            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p, "$unset": {"category": ""}}, upsert=True)
+        if products:
+            # Products no longer on blaklader.se are hidden, not deleted (old orders keep references).
+            await db.products.update_many({"updated_at": {"$ne": now}}, {"$set": {"active": False}})
+        await db.settings.update_one({"id": "catalog_tree"}, {"$set": {"groups": groups}}, upsert=True)
         status.update(count=len(products), last_run=now)
         logger.info("Catalog scrape complete: %d products", len(products))
         return len(products)

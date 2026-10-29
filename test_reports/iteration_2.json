@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 2 tested both backend and frontend. Backend: the new category tree, group/category/q filtering, hiding confirm_token and the order-reply HTML flow all work. In the first full run, 41/42 tests passed; the one failure was a stale iter1 test that I updated. That run included a real reply that confirmed order B10009 and sent the emails (202). Later runs hit the email provider's rate limit (429 'rate_limited'), which exposed a real bug: create_order returns HTTP 502, Cloudflare replaces the body with its own HTML 502 page, and the app shows 'Fel 502' instead of the Swedish message. The order is saved with email_status=failed and the cart is kept, so retries create duplicate orders (B10012-B10016 are failed). Frontend: the login link text is exact; the group chips, the subcategory chips with counts, the counts, search combined with category, and the subcategory reset all work; the Orders tab shows the BEKRÄFTAD badge and the reply for B10006; product detail, size validation and add to cart work. The checkout submit was reached, but the email rate limit stopped it with 'Fel 502', so checkout success could not be re-verified this run. No deprecated Expo packages were detected.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/orders", "issue": "When send_email fails (e.g. 429 rate_limited from the email API), the backend raises HTTPException(502). The Cloudflare/ingress replaces any 502 body with its own HTML error page, so the JSON detail 'Beställningen sparades men mejlet kunde inte skickas...' never reaches the client. The order is still saved (email_status=failed), so retries create duplicate orders. Reproduced: B10012, B10016 and others.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "emailer.send_email", "issue": "The 429 code 'rate_limited' is not mapped. Only insufficient_credits/integration_disabled/daily_limit_reached map to 503; rate_limited falls through to 502. Reference: /app/backend/emailer.py:110"},
+      {"endpoint": "POST /api/order-reply/{token}", "issue": "On any error (email failure, forbidden words), the re-rendered form clears the textarea, so the supplier loses the message they typed. The submitted message should be pre-filled in the textarea."},
+      {"endpoint": "GET /api/order-reply/{token}", "issue": "Cloudflare Email Obfuscation rewrites the customer email in the HTML (an email-decode script is injected). It works in a browser with JS, but shows '[email protected]' without JS. Cosmetic."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "checkout error banner", "issue": "Shows 'Fel 502' when the order email fails, because the response body is the Cloudflare HTML page (see backend critical). The cart is not cleared, but the order is already saved, so pressing submit again creates a duplicate order.", "testID": "checkout-error", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Shop", "issues": ["Group and subcategory chips are 36px tall, below the 44pt minimum touch target (add hitSlop or a 44px height)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter2_categories_reply.py", "/app/backend/tests/test_blaklader_api.py", "/app/test_reports/pytest/pytest_iter2.xml"],
+  "action_items": [
+    "POST /api/orders on email failure: do not return a 5xx status that the ingress swallows. Either return 200 with email_status='failed' and let the UI show a Swedish warning, or use a 4xx/503 (check that 503 is not replaced by Cloudflare too). Either way, make the frontend avoid duplicate orders on retry, e.g. clear the cart and show the order as saved, or add an endpoint to resend the email for an existing order.",
+    "emailer.py: map code 'rate_limited' (HTTP 429) to a friendly Swedish 503-style message (e.g. 'E-post är tillfälligt otillgänglig, försök igen om en stund').",
+    "api.ts: when res.json() fails (non-JSON body), show a generic Swedish message instead of 'Fel {status}'.",
+    "Order-reply form: keep the submitted message in the textarea when re-rendering with an error.",
+    "Optional: raise the group/subcategory chip touch targets to 44px."
+  ],
+  "critical_code_review_comments": [
+    "public_base() hardcodes the https:// scheme and trusts the x-forwarded-host header. That is fine behind the ingress, but a spoofed Host could produce a wrong confirm link. Consider a PUBLIC_BASE_URL env var.",
+    "Status badge: an order that is confirmed but whose email_status is failed would show the confirmed style together with the fail style (both styles are applied; confirmed wins in order). Acceptable.",
+    "The confirm token is not exposed by /orders or /admin/orders, and the order-reply pages escape all output (XSS test passed: the script tag is rendered as text in the app and on the page)."
+  ],
+  "updated_files": ["/app/backend/tests/test_blaklader_api.py (updated stale category test to the new tree schema)", "/app/backend/tests/test_iter2_categories_reply.py (new)"],
+  "success_rate": {"backend": "95% (all new-feature tests passed in the first run; the later reply/checkout runs were blocked by the email rate limit, which exposed the 502 bug)", "frontend": "90% (all new UI features verified; checkout success not re-verifiable because of the email rate limit)"},
+  "seed_data_creation": "Test orders B10009-B10016 were created, mostly by delivered@resend.dev. B10009 is confirmed with test replies (including '<script>alert(1)</script> ok'). B10011, B10012 and B10016 have status new; B10012 and B10016 have email_status failed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The email provider's rate limit (429 rate_limited) is reached after about 6-8 sends in a short period and did not reset within 7 minutes. Keep email-sending tests minimal and space them out. Get confirm_token from MongoDB (test_database.orders). The category tree has 8 groups with 1236 active products in total; underdelar has 401 and byxor 252.",
+  "rca_of_issue": "Reproduction: send enough emails to trigger 429, then place an order. Backend log: 'Email send failed: 429 {code: rate_limited}'. emailer raises HTTPException 502, and create_order catches it and re-raises 502. Cloudflare replaces the 502 body with an HTML 'Bad gateway' page, so frontend api() gets non-JSON and shows 'Fel 502'. The order was already inserted before sending, so it stays with email_status=failed. Mitigation: avoid a 5xx status for this handled failure, map rate_limited, and prevent duplicate orders on retry."
+}

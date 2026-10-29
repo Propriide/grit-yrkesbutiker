@@ -53,11 +53,17 @@ export default function Checkout() {
           <View style={styles.successIcon}>
             <Icon name="check-bold" size={48} color={colors.onSuccess} />
           </View>
-          <Text style={styles.successTitle}>Beställning skickad</Text>
+          <Text style={styles.successTitle}>{done.email_status === "sent" ? "Beställning skickad" : "Beställning sparad"}</Text>
           <Text style={styles.successNum} testID="order-success-number">
             Order {done.order_number}
           </Text>
-          <Text style={styles.successText}>Din beställning för {done.customer.company} har skickats. Du hittar den under Ordrar.</Text>
+          {done.email_status === "sent" ? (
+            <Text style={styles.successText}>Din beställning för {done.customer.company} har skickats. Du hittar den under Ordrar.</Text>
+          ) : (
+            <Text style={[styles.successText, { color: colors.warning }]} testID="order-email-warning">
+              Ordern är sparad, men mejlet till leverantören kunde inte skickas just nu. Administratören ser ordern i appen – lägg inte ordern igen.
+            </Text>
+          )}
         </View>
         <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
           <Button title="Visa ordrar" testID="order-success-orders-button" onPress={() => router.replace("/(tabs)/orders")} />

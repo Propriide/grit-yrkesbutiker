@@ -111,8 +111,9 @@ class TestProducts:
     def test_search_and_category(self, s, customer):
         cats = s.get(f"{BASE_URL}/api/categories", headers=customer["h"]).json()
         assert len(cats) > 0
-        d = s.get(f"{BASE_URL}/api/products", params={"category": cats[0]}, headers=customer["h"]).json()
-        assert d["total"] > 0 and all(i["category"] == cats[0] for i in d["items"])
+        g = cats[0]
+        d = s.get(f"{BASE_URL}/api/products", params={"group": g["slug"]}, headers=customer["h"]).json()
+        assert d["total"] == g["count"] and all(g["slug"] in i["groups"] for i in d["items"])
         q = s.get(f"{BASE_URL}/api/products", params={"q": "jacka"}, headers=customer["h"]).json()
         assert all("jacka" in i["name"].lower() or "jacka" in i["part_no"].lower() for i in q["items"])
 

@@ -6,8 +6,8 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Tex
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, Product } from "@/src/api";
-import { Button, EmptyState, formatPrice, Icon } from "@/src/components/ui";
+import { api, CategoryGroup, Product } from "@/src/api";
+import { Button, EmptyState, formatPrice, haptic, Icon } from "@/src/components/ui";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -22,6 +22,7 @@ export default function Shop() {
   const cardW = (Math.min(width, 700) - spacing.lg * 3) / 2;
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
+  const [group, setGroup] = useState("");
   const [category, setCategory] = useState("");
 
   useEffect(() => {
@@ -29,12 +30,14 @@ export default function Shop() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const cats = useQuery({ queryKey: ["categories"], queryFn: () => api<string[]>("/categories") });
+  const cats = useQuery({ queryKey: ["categories"], queryFn: () => api<CategoryGroup[]>("/categories") });
   const list = useInfiniteQuery({
-    queryKey: ["products", q, category],
+    queryKey: ["products", q, group, category],
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
-      api<Page>(`/products?page=${pageParam}&page_size=20&q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
+      api<Page>(
+        `/products?page=${pageParam}&page_size=20&q=${encodeURIComponent(q)}&group=${encodeURIComponent(group)}&category=${encodeURIComponent(category)}`,
+      ),
     getNextPageParam: (last) => (last.has_more ? last.page + 1 : undefined),
     refetchInterval: (query) => (query.state.data?.pages[0]?.syncing && !query.state.data?.pages[0]?.total ? 5000 : false),
   });
@@ -42,7 +45,13 @@ export default function Shop() {
   const total = list.data?.pages[0]?.total ?? 0;
   const syncing = list.data?.pages[0]?.syncing;
 
-  const chips = ["", ...(cats.data ?? [])];
+  const groups = cats.data ?? [];
+  const activeGroup = groups.find((g) => g.slug === group);
+  const selectGroup = (slug: string) => {
+    haptic("selection");
+    setGroup(slug);
+    setCategory("");
+  };
 
   return (
     <View style={styles.root}>
@@ -73,20 +82,43 @@ export default function Shop() {
           )}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipContent}>
-          {chips.map((c) => {
-            const active = c === category;
+          {[{ slug: "", name: "Alla" }, ...groups].map((g) => {
+            const active = g.slug === group;
             return (
               <Pressable
-                key={c || "all"}
-                testID={`category-chip-${c || "alla"}`}
-                onPress={() => setCategory(c)}
+                key={g.slug || "all"}
+                testID={`group-chip-${g.slug || "alla"}`}
+                hitSlop={{ top: 6, bottom: 6 }}
+                onPress={() => selectGroup(g.slug)}
                 style={[styles.chip, active && styles.chipActive]}
               >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{c || "Alla"}</Text>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{g.name}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
+        {activeGroup && activeGroup.children.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subRow} contentContainerStyle={styles.chipContent}>
+            {[{ slug: "", name: `Alla ${activeGroup.name.toLowerCase()}`, count: activeGroup.count }, ...activeGroup.children].map((c) => {
+              const active = c.slug === category;
+              return (
+                <Pressable
+                  key={c.slug || "all"}
+                  testID={`category-chip-${c.slug || "alla"}`}
+                  onPress={() => {
+                    haptic("selection");
+                    setCategory(c.slug);
+                  }}
+                  style={[styles.subChip, active && styles.subChipActive]}
+                >
+                  <Text style={[styles.subChipText, active && styles.subChipTextActive]}>
+                    {c.name} <Text style={styles.subCount}>{c.count}</Text>
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {list.isLoading ? (
@@ -184,6 +216,20 @@ const useStyles = makeStyles((c) => ({
   chipActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
   chipText: { color: c.onSurfaceSecondary, fontFamily: fonts.bodyBold, fontSize: 13 },
   chipTextActive: { color: c.onBrandPrimary },
+  subRow: { height: 48, flexGrow: 0, marginHorizontal: -spacing.lg, marginTop: -spacing.sm },
+  subChip: {
+    height: 36,
+    flexShrink: 0,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: c.border,
+    justifyContent: "center",
+  },
+  subChipActive: { borderColor: c.brandSecondary, backgroundColor: c.brandTertiary },
+  subChipText: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 13 },
+  subChipTextActive: { color: c.brandSecondary },
+  subCount: { color: c.muted, fontSize: 11 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg, padding: spacing.lg },
   skeleton: { height: 250, borderRadius: radius.md, backgroundColor: c.surfaceSecondary },
   listContent: { padding: spacing.lg, gap: spacing.lg },

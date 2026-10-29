@@ -16,6 +16,9 @@ export function OrderCard({ order, showCompany }: { order: Order; showCompany?: 
   const [open, setOpen] = useState(false);
   const qty = order.items.reduce((s, i) => s + i.quantity, 0);
   const sent = order.email_status === "sent";
+  const confirmed = order.status === "confirmed";
+  const replies = order.replies ?? [];
+  const lastReply = replies[replies.length - 1];
   return (
     <Pressable testID={`order-card-${order.order_number}`} onPress={() => setOpen(!open)} style={styles.card}>
       <View style={styles.cardTop}>
@@ -26,14 +29,25 @@ export function OrderCard({ order, showCompany }: { order: Order; showCompany?: 
             {showCompany ? `  ·  ${order.customer.company}` : ""}
           </Text>
         </View>
-        <View style={[styles.status, sent ? styles.statusOk : styles.statusFail]}>
-          <Text style={[styles.statusText, !sent && { color: colors.onError }]}>{sent ? "Skickad" : "Ej skickad"}</Text>
+        <View style={[styles.status, sent ? styles.statusOk : styles.statusFail, confirmed && styles.statusConfirmed]} testID={`order-status-${order.order_number}`}>
+          <Text style={[styles.statusText, !sent && { color: colors.onError }, confirmed && { color: colors.onBrandSecondary }]}>
+            {confirmed ? "Bekräftad" : sent ? "Skickad" : "Ej skickad"}
+          </Text>
         </View>
         <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.muted} />
       </View>
       <Text style={styles.summary}>
         {order.items.length} artiklar · {qty} st{showCompany ? `  ·  ${order.customer.email}` : ""}
       </Text>
+      {lastReply && (
+        <View style={styles.replyBox} testID={`order-reply-${order.order_number}`}>
+          <Icon name="message-reply-text" size={18} color={colors.brandSecondary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.replyText}>{lastReply.message}</Text>
+            <Text style={styles.replyDate}>{formatDate(lastReply.created_at)}</Text>
+          </View>
+        </View>
+      )}
       {open && (
         <View style={styles.details}>
           {order.items.map((i, idx) => (
@@ -49,6 +63,16 @@ export function OrderCard({ order, showCompany }: { order: Order; showCompany?: 
               <Text style={styles.itemQty}>{i.quantity} st</Text>
             </View>
           ))}
+          {replies.length > 1 && (
+            <View style={styles.commentBox}>
+              <Text style={styles.commentLabel}>Alla svar från leverantören</Text>
+              {replies.map((r, idx) => (
+                <Text key={idx} style={styles.comment}>
+                  {formatDate(r.created_at)}: {r.message}
+                </Text>
+              ))}
+            </View>
+          )}
           {!!order.comment && (
             <View style={styles.commentBox}>
               <Text style={styles.commentLabel}>Kommentar</Text>
@@ -69,6 +93,10 @@ const useStyles = makeStyles((c) => ({
   status: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm },
   statusOk: { backgroundColor: c.success },
   statusFail: { backgroundColor: c.error },
+  statusConfirmed: { backgroundColor: c.brandSecondary },
+  replyBox: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.sm, padding: spacing.md },
+  replyText: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 14 },
+  replyDate: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
   statusText: { color: c.onSuccess, fontFamily: fonts.bodyBold, fontSize: 11, textTransform: "uppercase" },
   summary: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 13, marginTop: spacing.sm },
   details: { marginTop: spacing.md, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: spacing.sm },

@@ -35,7 +35,7 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
     if (res.status === 401 && token) onUnauthorized?.();
     let msg = data?.detail;
     if (Array.isArray(msg)) msg = "Kontrollera att alla fält är korrekt ifyllda.";
-    throw new ApiError(msg || `Fel ${res.status}`, res.status);
+    throw new ApiError(msg || `Serverfel (${res.status}). Försök igen om en stund.`, res.status);
   }
   return data as T;
 }
@@ -49,7 +49,14 @@ export type Product = {
   image_url?: string;
   colors: Color[];
   sizes: string[];
-  category: string;
+  groups?: string[];
+  categories?: string[];
+};
+export type CategoryGroup = {
+  slug: string;
+  name: string;
+  count: number;
+  children: { slug: string; name: string; count: number }[];
 };
 export type User = {
   id: string;
@@ -81,5 +88,7 @@ export type Order = {
   comment: string;
   created_at: string;
   email_status: string;
+  status?: "new" | "confirmed";
+  replies?: { message: string; created_at: string }[];
   customer: { company: string; email: string };
 };

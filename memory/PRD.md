@@ -29,3 +29,7 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 
 ## Update (2026-10-29)
 - Added second seeded admin patrik.degerstam@yp.se (env SECOND_ADMIN_EMAIL/PASSWORD, insert-only seed, also runs in production on startup)
+- Catalog now scraped from all 1236 products with Blåkläder category tree (8 groups + subcategories); shop has group + subcategory chip rows
+- Login text "Inget konto? registrera dig här"
+- Order email "Bekräfta order" button → web page /api/order-reply/{token}; free-text reply emailed to orderer, order marked Bekräftad, reply shown in app
+- Email failure on checkout returns saved order with warning (no duplicate orders)
