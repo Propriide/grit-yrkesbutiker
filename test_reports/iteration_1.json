@@ -1,0 +1,49 @@
+{
+  "summary": "First full run. Backend: 25/25 pytest pass (auth, cities, products, orders+email via Resend sink, admin settings/users/orders, 503 without recipient, disabled-user 403, self-protection). Frontend (390x844 web preview): login (+error), register (validation, bottom-sheet city picker), shop grid (595 items, category chips, search), product detail (color/size pills, size-required error, qty stepper, add-to-cart toast), cart (badge, qty change, remove, empty state), checkout with comment -> success screen with order number, orders tab expandable card, no-recipient checkout error, logout; admin: profile admin rows, settings save/invalid email, cities add/edit/delete, customers search, user edit + disable (SPÄRRAD badge, disabled login message) + delete confirm/cancel, self row protections, all orders. All flows worked. One real backend bug found: order comments containing credential-like phrases (e.g. 'CVV') cause unhandled ValueError in emailer -> 500, order left 'pending'. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/orders", "issue": "emailer._assert_safe_email raises ValueError when the user-supplied comment (or product name) contains any _CRED_ASK phrase (e.g. comment 'Märk med CVV-nummer'). create_order only catches HTTPException, so the request returns 500 Internal Server Error, the order is persisted with email_status='pending' and no email is sent. Customer sees a generic error and will likely retry -> duplicate pending orders. Reproduced via /tmp/cvv.py.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/orders", "issue": "order_number derived from count_documents({}) – not atomic (concurrent orders can get the same number) and no unique index. Use an atomic counter (find_one_and_update $inc)."},
+      {"endpoint": "POST /api/orders", "issue": "size is not validated against the product's sizes and unknown color_code is silently dropped (color_name None)."},
+      {"endpoint": "POST /api/auth/register", "issue": "city_id is optional server-side; only the frontend enforces city selection when cities exist."},
+      {"endpoint": "PUT /api/admin/cities/{id}", "issue": "Rename has no duplicate-name check (POST does, 409). DELETE returns ok even for unknown id."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Register form", "issue": "Field validation errors stay visible after the user fixes the field (only re-evaluated on submit). Server 422 (e.g. admin@blaklader.local / .local email) shows generic 'Kontrollera att alla fält är korrekt ifyllda.' with no field hint.", "testID": "register-error", "priority": "low"}
+    ],
+    "integration_issues": [
+      {"flow": "Checkout", "issue": "Comment containing e.g. 'CVV' -> backend 500, order saved as pending (see backend critical).", "affected_testIDs": ["checkout-submit-button", "checkout-error"]}
+    ],
+    "design_issues": [
+      {"screen": "Global toast", "issues": ["Toast is positioned at top and covers the screen header/back button and title for 3.2s (pointerEvents none so taps still work, but header is visually hidden). Consider bottom placement above tab bar/CTA."]},
+      {"screen": "Admin user detail", "issues": ["Switch thumb renders teal/green on web when ON (RN-web default activeThumbColor) – set activeThumbColor / thumbColor for web to match brand."]},
+      {"screen": "Shop search / users search", "issues": ["Web focus outline draws a white rectangle inside the rounded search field (add outlineStyle: 'none' on web)."]},
+      {"screen": "Product detail", "issues": ["When scrolled, product title scrolls under the floating back/cart buttons with no header background (text overlaps buttons)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_blaklader_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "HIGH: In create_order, catch ValueError (and generic Exception) from send_email -> mark order 'failed' and return a meaningful 4xx/502; better: don't run credential-phrase scanning on user-entered comment text, or sanitize it (the comment is escaped already).",
+    "Use atomic counter for order_number and add unique index on orders.order_number.",
+    "Validate size (and color_code) against product data in POST /api/orders.",
+    "Clear per-field register errors on change; map 422 detail to field messages.",
+    "Move toast so it does not cover headers; fix web Switch thumb color and search input focus outline."
+  ],
+  "critical_code_review_comments": [
+    "emailer.send_email raises bare ValueError from _assert_safe_email before the try block – not converted to HTTPException.",
+    "count-based order numbering + deleting orders could produce duplicates.",
+    "Catalog sync (/api/admin/catalog/sync) only verified for 403 on non-admin; not triggered per instructions."
+  ],
+  "updated_files": ["/app/backend/tests/test_blaklader_api.py"],
+  "success_rate": {"backend": "96% (25/25 tests pass; 1 bug found via extra edge-case)", "frontend": "100% of tested flows functional"},
+  "seed_data_creation": "Test users/orders/cities (TEST_/test_ prefixed) were created and cleaned up. Only the admin's B10001 order remains. Recipient restored to delivered@resend.dev.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: export $(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env) && pytest /app/backend/tests/test_blaklader_api.py. Frontend env var is EXPO_PUBLIC_BACKEND_URL. Tab testIDs: tab-shop, tab-cart, tab-orders, tab-profile. Stack screens stay mounted on web -> duplicate header-back-button; use ':visible'. Test 503 by unsetting settings.order_email in Mongo and restoring afterwards.",
+  "rca_of_issue": "POST /api/orders with comment 'Märk med CVV-nummer' -> order_email_html includes comment -> send_email -> _assert_safe_email finds 'cvv' in lowercase body -> ValueError (outside try) -> propagates past `except HTTPException` in create_order -> FastAPI 500. Order already inserted with email_status 'pending'. Mitigation: wrap call with except (ValueError, Exception) -> set failed + return 4xx/502, or exclude user comment from the phrase scan."
+}

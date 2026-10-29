@@ -1,0 +1,177 @@
+{
+  "app_name": "Blåkläder B2B Workwear Order App",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "Rugged, industrial, and highly functional command-center for B2B workwear ordering, utilizing stark contrasts and high-visibility safety colors.",
+  "color": {
+    "surface": "#121212",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#1C1C1E",
+    "onSurfaceSecondary": "#E0E0E0",
+    "surfaceTertiary": "#2C2C2E",
+    "onSurfaceTertiary": "#BDBDBD",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#121212",
+    "brand": "#FF9900",
+    "brandPrimary": "#FF9900",
+    "onBrandPrimary": "#000000",
+    "brandSecondary": "#FFCC00",
+    "onBrandSecondary": "#000000",
+    "brandTertiary": "#4A3100",
+    "onBrandTertiary": "#FFCC00",
+    "success": "#4CAF50",
+    "onSuccess": "#000000",
+    "warning": "#FFC107",
+    "onWarning": "#000000",
+    "error": "#F44336",
+    "onError": "#FFFFFF",
+    "info": "#2196F3",
+    "onInfo": "#FFFFFF",
+    "border": "#333333",
+    "borderStrong": "#555555",
+    "divider": "#2C2C2C",
+    "muted": "#757575"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "Chivo",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous touch targets (min 44pt height for all interactables) suitable for gloved hands. Rigid, structural spacing with clear visual separators.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid surfaceSecondary and surfaceTertiary for elevation instead of glass, maintaining industrial clarity and performance."
+    ],
+    "dont's": [
+      "Do not use blur or glassmorphism on this app. Stick to solid, tactical, high-contrast surfaces."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Login & Registration",
+      "purpose": "Authenticate users securely with fields specifically tailored to B2B clients.",
+      "states": {
+        "loading": "Spinner over #121212 background.",
+        "empty": "N/A",
+        "error": "Red (#F44336) banner at the top detailing login/registration failure."
+      },
+      "layout": "Full-bleed background image with a dark gradient scrim (top to bottom, transparent to 90% #121212). Registration includes rigid, stacked text inputs. Company name is required; Org number is optional. City is a dropdown fetched from the admin list. Sticky primary CTA button at the bottom."
+    },
+    {
+      "name": "Product Catalog (Home)",
+      "purpose": "Browse the Blåkläder workwear assortment efficiently.",
+      "states": {
+        "loading": "Skeleton loaders for product cards.",
+        "empty": "Illustration of an empty warehouse shelf with 'Inga produkter hittades'.",
+        "error": "Text 'Kunde inte ladda produkter' with a 'Försök igen' CTA."
+      },
+      "layout": "Grid layout (2 columns) for product cards. Each card displays image, title, article number (muted text), and price. Use heavy Barlow Condensed for prices. Search bar pinned at the top. Hard dividers between sections."
+    },
+    {
+      "name": "Product Detail (PDP)",
+      "purpose": "View item specifications, select size, set quantity, and add to cart.",
+      "states": {
+        "loading": "Skeleton screen for image and details.",
+        "empty": "N/A",
+        "error": "Error loading product details with retry CTA."
+      },
+      "layout": "Large hero image of the product. Below, strong typographic hierarchy for title and article number. Segmented control or horizontal scroll list for Size selection (pill buttons). Stepper (+/-) for quantity. A highly visible, sticky 'Lägg i varukorg' (Add to Cart) CTA button docked at the bottom."
+    },
+    {
+      "name": "Cart & Checkout",
+      "purpose": "Review selected items and finalize the B2B order.",
+      "states": {
+        "loading": "Processing overlay with spinner.",
+        "empty": "Icon of an empty cart with text 'Varukorgen är tom' and a CTA to return to the catalog.",
+        "error": "Error banner for checkout failures."
+      },
+      "layout": "List view of cart items with thumbnail, title, selected size, and quantity. Below the list, a multi-line text input for 'Kommentar / Önskat leveransdatum' (Comment / Requested delivery date). Sticky 'Skicka beställning' (Send Order) button docked at the bottom."
+    },
+    {
+      "name": "Profile & Admin Dashboard",
+      "purpose": "Manage user profile and, for admins, control system settings (emails, cities, users).",
+      "states": {
+        "loading": "Skeleton loader for profile list items.",
+        "empty": "N/A",
+        "error": "Error fetching user data."
+      },
+      "layout": "List of navigation rows (Settings, Order History, Logout). If the user is an Admin, display a distinct 'Admin Panel' section with rows for 'Hantera Orter' (Manage Cities), 'Hantera e-post' (Manage recipient emails), and 'Hantera Kunder' (Manage Customers)."
+    }
+  ],
+  "images": {
+    "login_hero": {
+      "url": "https://images.unsplash.com/photo-1614213951697-a45781262acf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxjb25zdHJ1Y3Rpb24lMjB3b3JrZXIlMjBpbmR1c3RyaWFsJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTMyOTUwNzZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Construction worker in yellow hard hat industrial background"
+    },
+    "catalog_item_1": {
+      "url": "https://images.unsplash.com/photo-1520639888713-7851133b1ed0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHx3b3Jrd2VhciUyMGphY2tldCUyMHNhZmV0eSUyMGJvb3RzfGVufDB8fHx8MTc5MzI5NTA3N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Worker lacing safety boots"
+    },
+    "catalog_item_2": {
+      "url": "https://images.unsplash.com/photo-1613325267798-05214c4d65f1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHx3b3Jrd2VhciUyMGphY2tldCUyMHNhZmV0eSUyMGJvb3RzfGVufDB8fHx8MTc5MzI5NTA3N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Black leather work boot"
+    },
+    "catalog_item_3": {
+      "url": "https://images.unsplash.com/photo-1735494032948-14ef288fc9d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwzfHx3b3Jrd2VhciUyMGphY2tldCUyMHNhZmV0eSUyMGJvb3RzfGVufDB8fHx8MTc5MzI5NTA3N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Man in factory wearing hard hat and workwear"
+    },
+    "dark_texture_bg": {
+      "url": "https://images.unsplash.com/photo-1695987196855-3770e1f1a100?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxkYXJrJTIwaW5kdXN0cmlhbCUyMHN0ZWVsJTIwYmFja2dyb3VuZCUyMHRleHR1cmV8ZW58MHx8fHwxNzkzMjk1MDg1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark industrial steel background texture"
+    }
+  },
+  "haptics": {
+    "primary_button_press": "impactMedium",
+    "add_to_cart": "notificationSuccess",
+    "quantity_stepper": "selection",
+    "tab_change": "selection",
+    "error_state": "notificationError"
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the Dark-First Utility design: background must be deep obsidian/charcoal (#121212) to avoid OLED smear and eye strain, with high-visibility safety orange (#FF9900) as the primary brand color.",
+    "Use 'Barlow Condensed' for all major headings, prices, and quantities to achieve a rugged, industrial aesthetic. Use 'Chivo' for body text for readability.",
+    "Ensure all interactive elements have a minimum height of 44pt to accommodate users who may be operating the app with gloved hands in field/industrial environments.",
+    "Login/Registration: Implement the required specific fields - Company (required), Org Number (optional), City (dropdown fetched from admin settings).",
+    "Product Detail (PDP): Include article number ('artikelnummer'), size selection pills, and a quantity stepper. The 'Lägg i varukorg' (Add to Cart) button MUST be sticky at the bottom of the screen.",
+    "Checkout: Include a multi-line text input field specifically for 'önskat leveransdatum' (requested delivery date) or other comments before the final order placement.",
+    "Avoid Glassmorphism entirely: This is a tactical, B2B utility app. Use solid `surfaceSecondary` (#1C1C1E) for elevated surfaces, cards, and bottom tabs.",
+    "Any image used as a background (e.g., login hero) MUST have a vertical gradient scrim overlay (transparent to 90% surface color) at the bottom to guarantee text readability.",
+    "Implement Admin flow accessible from the Profile tab (only visible for admins). Admins must be able to: Manage order recipient email, manage available cities, and manage customer accounts."
+  ]
+}
