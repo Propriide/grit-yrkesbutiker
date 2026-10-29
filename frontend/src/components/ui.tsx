@@ -186,11 +186,6 @@ export function ErrorBanner({ message, testID = "error-banner" }: { message: str
   );
 }
 
-export function formatPrice(p?: number) {
-  if (p == null) return "";
-  return `${Math.round(p).toLocaleString("sv-SE")} kr`;
-}
-
 const useStyles = makeStyles((c) => ({
   btn: { minHeight: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   btnPrimary: { backgroundColor: c.brandPrimary },

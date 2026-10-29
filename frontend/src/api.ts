@@ -45,13 +45,14 @@ export type Product = {
   part_no: string;
   name: string;
   description?: string;
-  price?: number;
   image_url?: string;
   colors: Color[];
   sizes: string[];
   groups?: string[];
   categories?: string[];
 };
+export type FilterDef = { code: string; name: string; values: { value: string; count: number }[] };
+export type StoreInfo = { title: string; text: string; address: string; phone: string; email: string; hours: string };
 export type CategoryGroup = {
   slug: string;
   name: string;

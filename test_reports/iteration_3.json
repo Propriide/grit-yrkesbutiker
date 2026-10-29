@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 3 tested no prices, the Blåkläder filter panel, the Hem start page with per-store and default text, admin store editors, login lockout, the confirm-link host allowlist, and a checkout regression. Backend: 17 of 18 new tests pass, plus 16 of 16 non-email regression tests. The one failure is a minor size-sort bug. Frontend: every requested flow works at 375x667. Two medium bugs were found: tapping the same Hem group tile again does not reselect the group, and an empty store title/text is accepted and then shows a blank Hem page. No deprecated Expo packages were detected (no expo-av, expo-barcode-scanner or expo-background-fetch).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/filters (Size sort)", "issue": "_size_key only treats sizes in _LETTER_SIZES as letter sizes. '4XL/5XL', '4XLS', '4XLT' and '7XL' match the numeric regex, so they are mixed into the numbers ('4','4XL/5XL','4XLS','4XLT','5',...,'7','7XL','8'). They should be sorted with the letter sizes, for example by matching ^\\d?X+[SL]... before the numeric branch. Reference: server.py:297-306"},
+      {"endpoint": "PUT /api/admin/stores/{id}", "issue": "An empty title and text are accepted and stored. Because store_for merges stored '' over DEFAULT_STORE, GET /api/home then returns title='' and text='', and the customer sees a blank Hem header. Either require title and text (min_length=1) or fall back to the default when a value is empty. Reference: server.py:210-228"},
+      {"endpoint": "/api/admin/stores/{city_id}", "issue": "There is no way to reset a city to the default start page (no DELETE endpoint or 'Använd standard' button). After one save, the city keeps a copy of the default text, so later edits to the default no longer reach that city."},
+      {"endpoint": "POST /api/auth/login", "issue": "Lockout is counted per email only, so anyone who knows an address can lock that user out for 15 minutes (account-lockout DoS). It is also count-then-insert, which is not atomic. Consider counting per IP+email, or a CAPTCHA/backoff. This is low priority and the behaviour matches the spec."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Hem group tiles -> Sortiment", "issue": "Repro: tap home-group-underdelar (shows 401), tap group-chip-alla (1236), go back to the Hem tab, tap home-group-underdelar again. The URL is /shop?group=underdelar but the list still shows 'Alla' with 1236 articles. Cause: the shop.tsx useEffect depends on [params.group], and that value has not changed, so the effect does not run again. Fix: pass a nonce param (for example t=Date.now()) or use useFocusEffect, or call router.setParams when a chip changes. Reference: app/(tabs)/shop.tsx:32-37", "testID": "home-group-underdelar", "priority": "MEDIUM"},
+      {"component": "Admin store editor", "issue": "If GET /admin/stores/{id} fails, the form stays empty (q.isError is not handled), and Spara would overwrite the store with blank values. Also, no field is validated before saving. Reference: app/admin/store/[id].tsx:22-54", "testID": "store-save-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin store editor", "issues": ["The 'Startsidan sparad' success toast covers the Öppettider input just above the save button. This is cosmetic."]},
+      {"screen": "Filter sheet", "issues": ["Facet counts are static: they are not recalculated after other selections, while 'Visa N' is live. This is acceptable but differs from Blåkläder.", "Filters stay applied when the group changes. A selected value that does not exist in the new group's facets has no visible section, so it can only be removed with Rensa."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter3_filters_home_security.py",
+    "/app/test_reports/pytest/pytest_iter3.xml",
+    "/app/test_reports/pytest/pytest_regression_iter3.xml"
+  ],
+  "action_items": [
+    "Fix shop.tsx so tapping the same Hem group tile again reselects that group (nonce param or useFocusEffect).",
+    "Validate the store PUT so an empty title/text is rejected (or falls back to the default), and add a 'reset to default' option (DELETE /api/admin/stores/{city_id}).",
+    "Fix _size_key so sizes like 4XL/5XL, 4XLS, 4XLT and 7XL are sorted with the letter sizes, not the numeric ones.",
+    "Clean up: remove the unused styles.price/priceNote in shop.tsx:278 and product/[id].tsx:167-168, and the unused formatPrice in src/components/ui.tsx:189.",
+    "Handle the error state of the admin store GET before allowing a save."
+  ],
+  "critical_code_review_comments": [
+    "Prices: products are projected with price:0 in both the list and the detail endpoint, and no 'price' key appears anywhere in the JSON. The frontend shows no price or 'kr' text on cards, detail, cart or checkout.",
+    "public_base suffix matching uses leading-dot suffixes, so 'evilemergentagent.com' is rejected correctly. When X-Forwarded-Host was evil.example.com, the log showed 'Order confirm link base: https://workwear-order-2--7at9xelu.preview.emergentagent.com'.",
+    "Leftover price styles and formatPrice are dead code."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter3_filters_home_security.py (new)"],
+  "success_rate": {"backend": "94% (17/18 new tests; 16/16 regression)", "frontend": "95% (all requested flows pass; 1 medium bug when re-tapping a tile)"},
+  "seed_data_creation": "No permanent seed data. Throwaway test_lock_/test_reset_ users were created and deleted. The Borås and default store docs were restored (stores collection is empty again). login_attempts were cleaned up for test_ emails. Two test orders were sent to delivered@resend.dev (B10021 via API, B10022 via UI); both have email_status 'sent'.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Borås city id is b9a119ee-c1a5-4ec9-8955-c907f93818bd. The stores collection is empty (all stores use the default). For lockout tests use random test_ emails; non-existent emails are counted too. Filter option testIDs use the raw value, e.g. filter-option-Color-Svart and filter-option-Size-C50. The underdelar group has 401 products; Svart gives 265, Svart+C50 gives 242. The pytest.ini adds -n/xdist automatically.",
+  "rca_of_issue": "Re-tap tile bug: Expo Router keeps the tab screen mounted. When the user pushes the same ?group=underdelar again, useLocalSearchParams returns an identical value, so useEffect([params.group]) does not run and the local state still shows the group chosen with the chip. Empty store bug: store_for merges a stored '' value over DEFAULT_STORE."
+}

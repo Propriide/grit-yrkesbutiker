@@ -16,6 +16,12 @@ ROOT_CATEGORY_ID = 11945  # "Alla produkter" on blaklader.se
 # Top-level groups in the same order as the Blåkläder menu
 GROUP_ORDER = ["overdelar", "underdelar", "understall", "underklader", "vattentata-plagg", "handskar", "arbetsskor", "tillbehor"]
 PAGE_SIZE = 15
+# Filters shown in the app, same order as the Blåkläder filter panel. "Size" maps to product sizes.
+FILTER_CODES = [
+    "FilterFunction", "FilterCollections", "FilterTypeOfGarment", "Size", "Color", "FilterCertification",
+    "FilterHighvisClassification", "FilterHighVisCoCertification", "FilterMaterial", "P6412",
+    "FilterFlameResistantCollection", "FilterMiljomarkning",
+]
 NEXT_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
 status = {"running": False, "last_run": None, "count": 0, "error": None}
@@ -35,7 +41,7 @@ def _strip_html(s: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", s).strip()
 
 
-def _parse_list_item(item: dict) -> dict:
+def _parse_list_item(item: dict, color_names: dict[int, str]) -> dict:
     inner = item["innerProduct"]
     variant_images = {}
     for v in inner.get("variants") or []:
@@ -53,9 +59,13 @@ def _parse_list_item(item: dict) -> dict:
         "name": inner.get("name") or inner["partNo"],
         "slug": inner.get("uniqueName"),
         "description": _strip_html(inner.get("description", "")),
-        "price": inner.get("price"),
         "image_url": inner.get("imageUrl"),
         "colors": colors,
+        "filters": {
+            code: [v["value"] for v in ((item.get("innerParametrics") or {}).get(code) or {}).get("values") or [] if v.get("value")]
+            for code in FILTER_CODES if code != "Size"
+            and ((item.get("innerParametrics") or {}).get(code) or {}).get("values")
+        },
         "category_ids": list(inner.get("categories") or []),
         "sizes": [],
     }
@@ -112,6 +122,17 @@ async def scrape_catalog(db) -> int:
 
             first = _next_data(await _fetch(client, "/sv/alla-produkter?page=1"))["props"]["pageProps"]["plm"]
             pages = {1: first.get("productsList") or []}
+            filter_defs = []
+            color_names: dict[int, str] = {}
+            for fp in (first.get("filters") or {}).get("parametrics") or []:
+                if fp.get("parametricCode") == "Color":
+                    color_names = {v["id"]: v["value"] for v in fp.get("multipleValues") or [] if v.get("id")}
+            for fp in (first.get("filters") or {}).get("parametrics") or []:
+                if fp.get("parametricCode") in FILTER_CODES:
+                    vals = sorted(fp.get("multipleValues") or [], key=lambda v: v.get("sortOrder", 0))
+                    filter_defs.append({"code": fp["parametricCode"], "name": fp["name"],
+                                        "values": [v["value"] for v in vals if v.get("value")]})
+            filter_defs.sort(key=lambda f: FILTER_CODES.index(f["code"]))
             total_pages = -(-(first.get("total") or 0) // (first.get("pageSize") or PAGE_SIZE))
             sem = asyncio.Semaphore(6)
 
@@ -127,7 +148,11 @@ async def scrape_catalog(db) -> int:
             for n in sorted(pages):
                 for it in pages[n]:
                     try:
-                        p = _parse_list_item(it)
+                        p = _parse_list_item(it, color_names)
+                        if not p["filters"].get("Color"):
+                            base = sorted({color_names[cid] for c in it.get("colors") or [] for cid in c.get("color") or [] if cid in color_names})
+                            if base:
+                                p["filters"]["Color"] = base
                         products.setdefault(p["part_no"], p)
                     except Exception as e:
                         logger.warning("Parse failed: %s", e)
@@ -145,11 +170,11 @@ async def scrape_catalog(db) -> int:
             p.update(groups=sorted(grp), categories=sorted(subs), sort_index=i, updated_at=now, active=True)
             if not p["sizes"]:
                 p["sizes"] = ["One size"]
-            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p, "$unset": {"category": ""}}, upsert=True)
+            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p, "$unset": {"category": "", "price": ""}}, upsert=True)
         if products:
             # Products no longer on blaklader.se are hidden, not deleted (old orders keep references).
             await db.products.update_many({"updated_at": {"$ne": now}}, {"$set": {"active": False}})
-        await db.settings.update_one({"id": "catalog_tree"}, {"$set": {"groups": groups}}, upsert=True)
+        await db.settings.update_one({"id": "catalog_tree"}, {"$set": {"groups": groups, "filters": filter_defs}}, upsert=True)
         status.update(count=len(products), last_run=now)
         logger.info("Catalog scrape complete: %d products", len(products))
         return len(products)

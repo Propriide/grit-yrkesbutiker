@@ -37,7 +37,7 @@ export function OrderCard({ order, showCompany }: { order: Order; showCompany?: 
         <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.muted} />
       </View>
       <Text style={styles.summary}>
-        {order.items.length} artiklar · {qty} st{showCompany ? `  ·  ${order.customer.email}` : ""}
+        {order.items.length} {order.items.length === 1 ? "artikel" : "artiklar"} · {qty} st{showCompany ? `  ·  ${order.customer.email}` : ""}
       </Text>
       {lastReply && (
         <View style={styles.replyBox} testID={`order-reply-${order.order_number}`}>

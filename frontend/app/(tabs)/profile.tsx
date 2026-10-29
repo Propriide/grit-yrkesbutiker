@@ -41,12 +41,17 @@ export default function Profile() {
           </View>
         </View>
 
+        <View style={[styles.list, { marginTop: spacing.lg }]}>
+          <Row icon="package-variant-closed" title="Mina ordrar" sub="Beställningar och svar från butiken" testID="my-orders-row" onPress={() => router.push("/orders")} last />
+        </View>
+
         {isAdmin && (
           <>
             <Text style={styles.section}>Adminpanel</Text>
             <View style={styles.list}>
               <Row icon="email-fast" title="Ordermottagare & sortiment" sub="E-post för beställningar, uppdatera katalog" testID="admin-settings-row" onPress={() => router.push("/admin/settings")} />
-              <Row icon="map-marker-radius" title="Hantera orter" sub="Orter som konton kan tillhöra" testID="admin-cities-row" onPress={() => router.push("/admin/cities")} />
+              <Row icon="storefront" title="Startsida (standard)" sub="Visas för konton utan egen butikstext" testID="admin-default-store-row" onPress={() => router.push("/admin/store/default")} />
+              <Row icon="map-marker-radius" title="Orter & butiker" sub="Orter och startsida per butik" testID="admin-cities-row" onPress={() => router.push("/admin/cities")} />
               <Row icon="account-group" title="Hantera kunder" sub="Kundkonton, ort, spärra & ta bort" testID="admin-users-row" onPress={() => router.push("/admin/users")} />
               <Row icon="clipboard-list" title="Alla ordrar" sub="Samtliga beställningar" testID="admin-orders-row" onPress={() => router.push("/admin/orders")} last />
             </View>

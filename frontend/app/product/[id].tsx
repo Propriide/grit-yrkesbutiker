@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, Product } from "@/src/api";
 import { useCart } from "@/src/cart";
-import { Button, EmptyState, formatPrice, haptic, Icon, Stepper } from "@/src/components/ui";
+import { Button, EmptyState, haptic, Icon, Stepper } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
 
@@ -52,7 +52,7 @@ export default function ProductDetail() {
   return (
     <View style={styles.root}>
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable testID="product-back-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={styles.roundBtn}>
+        <Pressable testID="product-back-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/shop"))} style={styles.roundBtn}>
           <Icon name="arrow-left" size={24} color={colors.onSurface} />
         </Pressable>
         <Pressable testID="product-cart-button" onPress={() => router.push("/(tabs)/cart")} style={styles.roundBtn}>
@@ -89,11 +89,6 @@ export default function ProductDetail() {
               <Text style={styles.name} testID="product-name">
                 {p.name}
               </Text>
-              {p.price != null && (
-                <Text style={styles.price}>
-                  {formatPrice(p.price)} <Text style={styles.priceNote}>exkl. moms, cirkapris</Text>
-                </Text>
-              )}
 
               {p.colors?.length > 0 && (
                 <>
@@ -169,8 +164,6 @@ const useStyles = makeStyles((c) => ({
   body: { padding: spacing.lg },
   partNo: { color: c.brandPrimary, fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1 },
   name: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 32, textTransform: "uppercase", lineHeight: 34, marginTop: spacing.xs },
-  price: { color: c.brandSecondary, fontFamily: fonts.displayHeavy, fontSize: 26, marginTop: spacing.sm },
-  priceNote: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   section: { color: c.onSurfaceSecondary, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", marginTop: spacing.xl, marginBottom: spacing.md },
   sectionValue: { color: c.muted, fontFamily: fonts.body, fontSize: 13, textTransform: "none", letterSpacing: 0 },
   colorRow: { gap: spacing.sm },

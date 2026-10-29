@@ -30,7 +30,7 @@ export default function Cart() {
             icon="cart-outline"
             title="Varukorgen är tom"
             text="Bläddra i sortimentet och lägg till plagg."
-            action={<Button title="Till sortimentet" testID="cart-browse-button" onPress={() => router.push("/(tabs)")} />}
+            action={<Button title="Till sortimentet" testID="cart-browse-button" onPress={() => router.push("/(tabs)/shop")} />}
           />
         </View>
       ) : (

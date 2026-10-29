@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useState } from "react";
 import { FlatList, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -44,7 +45,7 @@ export default function AdminCities() {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScreenHeader title="Orter" subtitle="Väljs av kunder vid registrering" />
+      <ScreenHeader title="Orter & butiker" subtitle="Tryck på butiksikonen för att ändra startsidan" />
       <FlatList
         testID="cities-list"
         data={q.data ?? []}
@@ -91,6 +92,9 @@ export default function AdminCities() {
               <>
                 <Icon name="map-marker" size={20} color={colors.brandPrimary} />
                 <Text style={styles.name}>{item.name}</Text>
+                <Pressable testID={`city-store-${item.id}`} style={styles.iconBtn} onPress={() => router.push(`/admin/store/${item.id}`)}>
+                  <Icon name="storefront-edit" size={20} color={colors.brandSecondary} />
+                </Pressable>
                 <Pressable
                   testID={`city-edit-${item.id}`}
                   style={styles.iconBtn}

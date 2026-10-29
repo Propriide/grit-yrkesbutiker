@@ -33,3 +33,7 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Login text "Inget konto? registrera dig här"
 - Order email "Bekräfta order" button → web page /api/order-reply/{token}; free-text reply emailed to orderer, order marked Bekräftad, reply shown in app
 - Email failure on checkout returns saved order with warning (no duplicate orders)
+- Prices hidden everywhere (not stored/returned)
+- Filter panel matching Blåkläder: Funktion, Kollektioner, Typ av plagg, Storlek, Färg, Certifiering, Varsel klassificering, Varsel samcertifiering, Material, Tvätt, Kollektion flamskydd, Miljömärkning (I lager not available from public site)
+- Start screen (Hem tab) with YP Yrkesbutiker logo + store info per city (admin editable, default fallback); Orders moved to Profil → Mina ordrar
+- Security: login lockout (5 fails/15 min), order-confirm link host allowlist (PUBLIC_HOST_SUFFIXES)

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -174,11 +175,25 @@ async def register(body: RegisterIn):
     return {"access_token": make_token(user), "user": await public_user(user)}
 
 
+MAX_FAILED_LOGINS = 5  # per email + IP
+MAX_FAILED_LOGINS_PER_EMAIL = 30  # across all IPs (slows distributed guessing)
+LOCKOUT_MINUTES = 15
+
+
 @api.post("/auth/login")
-async def login(body: LoginIn):
-    user = await db.users.find_one({"email": body.email.strip().lower()}, {"_id": 0})
+async def login(body: LoginIn, request: Request):
+    email = body.email.strip().lower()
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "")).split(",")[-1].strip()
+    since = (datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
+    per_ip = await db.login_attempts.count_documents({"email": email, "ip": ip, "at_iso": {"$gte": since}})
+    per_email = await db.login_attempts.count_documents({"email": email, "at_iso": {"$gte": since}})
+    if per_ip >= MAX_FAILED_LOGINS or per_email >= MAX_FAILED_LOGINS_PER_EMAIL:
+        raise HTTPException(429, f"För många misslyckade inloggningar. Försök igen om {LOCKOUT_MINUTES} minuter.")
+    user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_pw(body.password, user["password_hash"]):
+        await db.login_attempts.insert_one({"email": email, "ip": ip, "at": datetime.now(timezone.utc), "at_iso": now_iso()})
         raise HTTPException(401, "Fel e-post eller lösenord")
+    await db.login_attempts.delete_many({"email": email, "ip": ip})
     if user.get("disabled"):
         raise HTTPException(403, "Kontot är spärrat. Kontakta administratören.")
     return {"access_token": make_token(user), "user": await public_user(user)}
@@ -193,6 +208,66 @@ async def me(user: dict = Depends(current_user)):
 @api.get("/cities")
 async def list_cities():
     return await db.cities.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+
+
+# ---------------------------------------------------------------- store start page
+class StoreIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    text: str = Field(min_length=1, max_length=4000)
+    address: str = Field(default="", max_length=300)
+    phone: str = Field(default="", max_length=60)
+    email: str = Field(default="", max_length=200)
+    hours: str = Field(default="", max_length=600)
+
+
+DEFAULT_STORE = {
+    "title": "Välkommen till YP Yrkesbutiker",
+    "text": "Här beställer du arbetskläder från Blåkläders sortiment till ditt företag. Välj plagg, storlek och antal – vi återkommer med bekräftelse och leveranstid.",
+    "address": "", "phone": "", "email": "", "hours": "",
+}
+
+
+async def store_for(store_id: str) -> dict:
+    s = await db.stores.find_one({"id": store_id}, {"_id": 0}) or {}
+    return {**DEFAULT_STORE, **{k: v for k, v in s.items() if k in DEFAULT_STORE}}
+
+
+@api.get("/home")
+async def home(user: dict = Depends(current_user)):
+    city = await db.cities.find_one({"id": user.get("city_id")}, {"_id": 0}) if user.get("city_id") else None
+    custom = city and await db.stores.find_one({"id": city["id"]})
+    data = await store_for(city["id"] if custom else "default")
+    return {**data, "city_name": city["name"] if city else None}
+
+
+@api.get("/admin/stores/{store_id}")
+async def admin_get_store(store_id: str, _: dict = Depends(admin_only)):
+    if store_id != "default" and not await db.cities.find_one({"id": store_id}):
+        raise HTTPException(404, "Orten hittades inte")
+    has_custom = bool(await db.stores.find_one({"id": store_id}))
+    return {**await store_for(store_id if has_custom else "default"), "id": store_id, "custom": has_custom}
+
+
+@api.put("/admin/stores/{store_id}")
+async def admin_put_store(store_id: str, body: StoreIn, _: dict = Depends(admin_only)):
+    if store_id != "default" and not await db.cities.find_one({"id": store_id}):
+        raise HTTPException(404, "Orten hittades inte")
+    data = {k: v.strip() for k, v in body.model_dump().items()}
+    if not data["title"] or not data["text"]:
+        raise HTTPException(400, "Rubrik och information får inte vara tomma")
+    await db.stores.update_one({"id": store_id}, {"$set": {**data, "id": store_id}}, upsert=True)
+    return {**data, "id": store_id, "custom": True}
+
+
+@api.delete("/admin/stores/{store_id}")
+async def admin_reset_store(store_id: str, _: dict = Depends(admin_only)):
+    """Reset a city's start page to the default text (removes only that city's override)."""
+    if store_id == "default":
+        raise HTTPException(400, "Standardsidan kan inte återställas")
+    if not await db.cities.find_one({"id": store_id}):
+        raise HTTPException(404, "Orten hittades inte")
+    await db.stores.delete_one({"id": store_id})
+    return {**await store_for("default"), "id": store_id, "custom": False}
 
 
 # ---------------------------------------------------------------- products
@@ -212,11 +287,7 @@ async def categories(_: dict = Depends(current_user)):
     return out
 
 
-@api.get("/products")
-async def products(
-    q: str = "", group: str = "", category: str = "", page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
-    _: dict = Depends(current_user),
-):
+def _base_filter(q: str, group: str, category: str, filters: str) -> dict:
     flt: dict = {"active": {"$ne": False}}
     if group:
         flt["groups"] = group
@@ -225,8 +296,67 @@ async def products(
     if q.strip():
         rx = {"$regex": re.escape(q.strip()), "$options": "i"}
         flt["$or"] = [{"name": rx}, {"part_no": rx}]
+    if filters:
+        try:
+            sel = json.loads(filters)
+        except ValueError:
+            raise HTTPException(400, "Ogiltigt filter")
+        if not isinstance(sel, dict):
+            raise HTTPException(400, "Ogiltigt filter")
+        for code, values in sel.items():
+            if code not in scraper.FILTER_CODES or not isinstance(values, list) or not values:
+                continue
+            vals = [str(v) for v in values][:50]
+            flt["sizes" if code == "Size" else f"filters.{code}"] = {"$in": vals}
+    return flt
+
+
+_LETTER_SIZES = ["XXS", "XS", "S", "S/M", "M", "L", "L/XL", "XL", "XXL", "XXL/3XL"]
+_NXL_RX = re.compile(r"^(\d)XL(.*)$")
+
+
+def _size_key(s: str):
+    if s in _LETTER_SIZES:
+        return (0, _LETTER_SIZES.index(s), "", 0, s)
+    m = _NXL_RX.match(s)
+    if m:  # 3XL, 4XL, 4XLS, 4XLT, 7XL ... after XXL
+        return (0, len(_LETTER_SIZES) + int(m.group(1)), m.group(2), 0, s)
+    if s.lower() == "one size":
+        return (0, 99, "", 0, s)
+    m = re.match(r"^([A-Za-z]*)\s*(\d+)", s)
+    if m:
+        return (1, 0, m.group(1).upper(), int(m.group(2)), s)
+    return (2, 0, "", 0, s)
+
+
+@api.get("/filters")
+async def filter_options(q: str = "", group: str = "", category: str = "", _: dict = Depends(current_user)):
+    """Filter panel definitions (Blåkläder order) with counts for the current group/category/search."""
+    tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
+    base = _base_filter(q, group, category, "")
+    out = []
+    for f in tree.get("filters", []):
+        field = "$sizes" if f["code"] == "Size" else f"$filters.{f['code']}"
+        counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
+            {"$match": base}, {"$unwind": field}, {"$group": {"_id": field, "n": {"$sum": 1}}}])}
+        order = f["values"] or sorted(counts)
+        if f["code"] == "Size":
+            order = sorted(counts, key=_size_key)
+        values = [{"value": v, "count": counts[v]} for v in order if counts.get(v)]
+        if values:
+            out.append({"code": f["code"], "name": f["name"], "values": values})
+    return out
+
+
+@api.get("/products")
+async def products(
+    q: str = "", group: str = "", category: str = "", filters: str = "",
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
+    _: dict = Depends(current_user),
+):
+    flt = _base_filter(q, group, category, filters)
     total = await db.products.count_documents(flt)
-    proj = {"_id": 0, "description": 0}
+    proj = {"_id": 0, "description": 0, "price": 0, "filters": 0}
     items = await db.products.find(flt, proj).sort("sort_index", 1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
     return {"items": items, "total": total, "page": page, "has_more": page * page_size < total,
             "syncing": scraper.status["running"]}
@@ -234,7 +364,7 @@ async def products(
 
 @api.get("/products/{part_no}")
 async def product(part_no: str, _: dict = Depends(current_user)):
-    p = await db.products.find_one({"part_no": part_no}, {"_id": 0})
+    p = await db.products.find_one({"part_no": part_no}, {"_id": 0, "price": 0})
     if not p:
         raise HTTPException(404, "Produkten hittades inte")
     return p
@@ -312,7 +442,9 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
         "status": "new", "confirm_token": secrets.token_urlsafe(24), "replies": [],
     }
     subject = f"Beställning {order['order_number']} – {order['customer']['company']}"
-    html = order_email_html(order, f"{public_base(request)}/api/order-reply/{order['confirm_token']}")
+    confirm_base = public_base(request)
+    logger.info("Order confirm link base: %s", confirm_base)
+    html = order_email_html(order, f"{confirm_base}/api/order-reply/{order['confirm_token']}")
     try:
         assert_safe_email(subject, html)
     except ValueError:
@@ -343,9 +475,17 @@ async def my_orders(user: dict = Depends(current_user)):
 MAX_REPLIES = 10
 
 
+_HOST_RX = re.compile(r"^[a-z0-9.-]+(:\d+)?$")
+PUBLIC_HOST_SUFFIXES = tuple(s.strip() for s in os.environ["PUBLIC_HOST_SUFFIXES"].split(",") if s.strip())
+
+
 def public_base(request: Request) -> str:
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-    return f"https://{host}"
+    # Only trust a forwarded host that belongs to our own allowlisted domains.
+    for h in (request.headers.get("x-forwarded-host"), request.headers.get("host")):
+        host = (h or "").split(",")[0].strip().lower()
+        if _HOST_RX.match(host) and host.split(":")[0].endswith(PUBLIC_HOST_SUFFIXES):
+            return f"https://{host}"
+    raise HTTPException(400, "Ogiltig värd")
 
 
 def reply_page(title: str, body: str) -> HTMLResponse:
@@ -573,6 +713,8 @@ async def startup():
     await db.users.create_index("id", unique=True)
     await db.products.create_index("part_no", unique=True)
     await db.cities.create_index("id", unique=True)
+    await db.login_attempts.create_index("at", expireAfterSeconds=LOCKOUT_MINUTES * 60)
+    await db.login_attempts.create_index("email")
     await db.orders.create_index("order_number", unique=True)
     if not await db.counters.find_one({"id": "order_number"}):
         await db.counters.insert_one({"id": "order_number", "seq": await db.orders.count_documents({})})
@@ -596,7 +738,7 @@ async def startup():
     if await db.cities.count_documents({}) == 0:
         for n in ["Stockholm", "Göteborg", "Malmö"]:
             await db.cities.insert_one({"id": str(uuid.uuid4()), "name": n})
-    if await db.products.count_documents({}) == 0 or not await db.settings.find_one({"id": "catalog_tree"}):
+    if await db.products.count_documents({}) == 0 or not (await db.settings.find_one({"id": "catalog_tree"}) or {}).get("filters"):
         asyncio.create_task(scraper.scrape_catalog(db))
 
 

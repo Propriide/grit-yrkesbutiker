@@ -17,6 +17,10 @@ export default function TabsLayout() {
     return (
       <NativeTabs tintColor={colors.brandPrimary}>
         <NativeTabs.Trigger name="index">
+          <NativeTabs.Trigger.Icon sf="house.fill" />
+          <NativeTabs.Trigger.Label>Hem</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="shop">
           <NativeTabs.Trigger.Icon sf="square.grid.2x2.fill" />
           <NativeTabs.Trigger.Label>Sortiment</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
@@ -24,10 +28,6 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="cart.fill" />
           <NativeTabs.Trigger.Label>Varukorg</NativeTabs.Trigger.Label>
           {count > 0 ? <NativeTabs.Trigger.Badge>{String(count)}</NativeTabs.Trigger.Badge> : null}
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="orders">
-          <NativeTabs.Trigger.Icon sf="shippingbox.fill" />
-          <NativeTabs.Trigger.Label>Ordrar</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
           <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" />
@@ -55,6 +55,10 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
+        options={{ title: "Hem", tabBarButtonTestID: "tab-home", tabBarIcon: ({ color }) => <Icon name="home-variant" size={24} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="shop"
         options={{ title: "Sortiment", tabBarButtonTestID: "tab-shop", tabBarIcon: ({ color }) => <Icon name="view-grid" size={24} color={color} /> }}
       />
       <Tabs.Screen
@@ -66,10 +70,6 @@ export default function TabsLayout() {
           tabBarBadgeStyle: { backgroundColor: colors.brandSecondary, color: colors.onBrandSecondary, fontFamily: fonts.bodyBold },
           tabBarIcon: ({ color }) => <Icon name="cart" size={24} color={color} />,
         }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{ title: "Ordrar", tabBarButtonTestID: "tab-orders", tabBarIcon: ({ color }) => <Icon name="package-variant-closed" size={24} color={color} /> }}
       />
       <Tabs.Screen
         name="profile"

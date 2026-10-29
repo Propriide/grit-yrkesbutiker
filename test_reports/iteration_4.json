@@ -1,0 +1,47 @@
+{
+  "summary": "Retest of the 5 fixes from iteration 3 plus a quick regression. All 5 fixes are verified. Backend: 32 of 32 tests pass (14 new in test_iter4_fixes.py and 18 from iteration 3; I updated 2 iteration 3 tests that no longer matched the intended behaviour). Frontend at 375x667: all requested flows pass. FIX1: tapping the Hem tile again after choosing 'Alla' reselects Underdelar (401). FIX2: the client error is shown, the reset button only appears for a city with a custom page, reset reverts to the default, and the error state with retry works. FIX3 and FIX4 pass. FIX5: no prices in the API or UI. Regression passes: filter apply/clear gives 401 -> 242 -> 401, product detail, size required, add to cart, checkout (B10025), Mina ordrar. No expo-av, expo-barcode-scanner or expo-background-fetch was found. Deprecated API detected: expo-router/unstable-native-tabs. A few minor issues are listed below.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login (lockout IP)", "issue": "The IP is taken from the first value of X-Forwarded-For, which the client controls. A test sent X-Forwarded-For: 10.10.10.1 and that exact value was stored. Sending a different spoofed XFF after a lockout logged in with 200. An attacker can rotate XFF to get a fresh 5 tries per value. Only the 30-per-email cap limits this, and that cap does work (the 31st attempt gives 429). Fix: use the right-most (proxy-appended) XFF entry or the trusted ingress header. Reference: server.py:186"},
+      {"endpoint": "DELETE /api/admin/stores/{id}", "issue": "Returns 200 with custom=false for a city id that does not exist. GET and PUT return 404 in that case. Reference: server.py:262-268"},
+      {"endpoint": "GET /api/filters (Size)", "issue": "The requested order is correct: XXS..XXL/3XL, 4XL, 4XL/5XL, 4XLS, 4XLT, 5XL..7XL, One size, then numbers, then B/C/D sizes. But letter variants fall to the very end of the list: LS, LT, M/L, MS, MT, SS, ST, XL/XXL, XLS, XLT, XS/S, XSS, XST, XXLS, XXLT, XXSS, XXXL, XXXLS, XXXLT, XXXS, Spec, Z, onesize. Ideally they should sit next to their base letter size (XXXL = 3XL, onesize = One size). Reference: server.py:312-327"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Admin store editor error banner", "issue": "The store-error banner is rendered at the top of the scroll view. Save is at the bottom and needs scrolling at 375x667, so the 'Rubrik och information får inte vara tomma.' message is off-screen when the user taps Save. Scroll to the top or show the error near the button. Reference: app/admin/store/[id].tsx:95", "testID": "store-error", "priority": "LOW"},
+      {"component": "Admin store editor error state", "issue": "The error state appears only after about 7.8 seconds (spinner until then). The default QueryClient retries 3 times even on 404/403. Set retry to skip ApiError 4xx. Reference: src/query-client.ts:7", "testID": "store-retry-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin store editor", "issues": ["Subtitle shows 'Butik:' with an empty name for an unknown id or while cities are loading", "store-reset-button resets the custom page right away, with no confirmation dialog"]},
+      {"screen": "Mina ordrar", "issues": ["'1 artiklar' should be '1 artikel' when the count is 1 (src/components/order-card.tsx:40)"]},
+      {"screen": "Sortiment", "issues": ["Tapping a Hem group tile resets group/category but keeps the active filters and search from earlier, which can give unexpected or empty results"]}
+    ],
+    "react_native_issues": [
+      {"component": "expo-router/unstable-native-tabs", "issue": "Metro warns that `expo-router/unstable-native-tabs` is deprecated; use `expo-router/native-tabs`. Reference: app/(tabs)/_layout.tsx:2"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter4_fixes.py", "/app/backend/tests/test_iter3_filters_home_security.py", "/app/test_reports/pytest/pytest_iter4.xml"],
+  "action_items": [
+    "Lockout: do not trust the client-supplied first X-Forwarded-For value. Use the proxy-appended right-most value (server.py:186)",
+    "Change the import in app/(tabs)/_layout.tsx from expo-router/unstable-native-tabs to expo-router/native-tabs",
+    "Optional: DELETE /admin/stores/{id} should return 404 for an unknown city",
+    "Optional: show the store editor error near the Save button, or scroll to it; turn off query retries for 4xx",
+    "Optional: group letter variants (XXXL, XLT, onesize, ...) with their base sizes in _size_key",
+    "Optional: singular 'artikel' in order-card"
+  ],
+  "critical_code_review_comments": [
+    "No price, formatPrice or price styles remain in frontend app/src (grep is clean)",
+    "shop.tsx effect [params.group, params.t] correctly resets group/category every time a tile is tapped",
+    "StoreIn now has min_length=1 and a strip check, so whitespace-only values return 400"
+  ],
+  "updated_files": ["/app/backend/tests/test_iter4_fixes.py (new)", "/app/backend/tests/test_iter3_filters_home_security.py (2 tests updated to match the new behaviour: the PUT body includes text, and the size check ignores NXL sizes when finding the first numeric size)"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Order B10025 was created for delivered@resend.dev. Temporary test_lock_* users were created and deleted. The Borås store page was customised and then reset (the stores collection is empty again).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Borås city id is b9a119ee-c1a5-4ec9-8955-c907f93818bd. Run pytest with -p no:xdist -o addopts='' and export EXPO_PUBLIC_BACKEND_URL from frontend/.env. Size filter values are under the 'values' key. The lockout tests use spoofed X-Forwarded-For values, which the backend accepts as-is.",
+  "rca_of_issue": "XFF spoofing: request.headers['x-forwarded-for'].split(',')[0] takes the client-supplied first hop. The ingress appends the real IP on the right, so the left-most value cannot be trusted."
+}
