@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 8: notifications, order timeline, confirm/decline (app + email link) and colour-filter ranking. Backend 13/13 pytest pass (1 order placed: B10036; 3 real emails in total). Frontend: bell + unread badge on Hem/Varukorg/Profil and on Sortiment once the gender picker is done; notifications list -> /order/{id} timeline works (Skickad/Bekräftad/Nekad); badge goes down after reading (2 -> 1 -> 0); 'Visa tidslinje' and the 'Nekad' badge work; admin reply sheet has Neka/Bekräfta and checks for an empty message; Svart filter shows solid black first and the product opens with -9900 preselected. One functional bug: the Blå filter ranks/labels some products as 'Svart' first, because upstream solid 'Svart' colours have base ['Blå','Svart']. No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/products?filters={Color:[Blå]}", "issue": "The colour score treats any colour whose name has no '/' as 'solid' if its base contains a selected colour. Blåkläder data has 8 'Svart' colours with base ['Blå','Svart'] (and 'Mellangrå' with ['Blå','Grå']). So the first Blå result is 14531847 (only 'Mörk marinblå/Svart' and 'Svart'), shown as a black card labelled 'Svart'. Fix: give the highest score to solid colours whose base is a subset of the selection (e.g. 3), then solid colours with extra bases (2), then combos. Apply the same change to the frontend pickColor (src/color-match.ts) so the card image/label agrees."},
+      {"endpoint": "POST /api/orders", "issue": "Admin 'new' notifications are only created after the email is sent. When the email fails (early return at server.py:589-593), admins get no in-app notification, even though these orders need attention most. Notify admins in both branches."},
+      {"endpoint": "GET /api/notifications", "issue": "'unread' is counted only from the latest 100 items (to_list(100)). Use count_documents({user_id, read:false}). There is also no retention/cleanup of old notifications."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Sortiment gender picker", "issue": "notification-bell is missing on the Sortiment tab while the first-time gender picker is shown (shop.tsx returns the picker view without the header bell). It appears after choosing Herr/Dam/Alla.", "testID": "notification-bell", "priority": "LOW"},
+      {"component": "Shop card (Blå filter)", "issue": "First card for Färg=Blå is 14531847, black image with label 'Svart' (see backend ranking issue).", "testID": "product-card-14531847", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin reply sheet", "issues": ["reply-sheet-close icon is 24x24 with hitSlop 8 (about 40px, under 44)", "'Neka' emails the customer straight away with no confirm dialog, and has no loading spinner (only disabled)"]},
+      {"screen": "Order timeline", "issues": ["Step testIDs come from the label (timeline-step-${label.toLowerCase()}), so orders with several replies get duplicate testIDs (e.g. B10031 has 4 replies) and 'väntar på bekräftelse' contains spaces. Use the index or key instead", "Orders whose email failed ('Ej skickad') still show 'Väntar på bekräftelse' instead of a failed step"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter8_notifications_timeline_colors.py", "/app/test_reports/pytest/pytest_iter8.xml"],
+  "action_items": [
+    "Colour ranking: score solid colours whose base is a subset of the selected colours above solid colours with extra bases (backend $map score and src/color-match.ts pickColor), so the Blå filter shows Marinblå/Mörk marinblå first and not 'Svart'",
+    "Show NotificationBell on the Sortiment gender-picker view too",
+    "Create admin notifications even when the order email fails",
+    "Compute notifications 'unread' with count_documents instead of from the first 100 items",
+    "Minor: unique timeline step testIDs; 44px close target on the reply sheet; optional confirm dialog for Neka"
+  ],
+  "critical_code_review_comments": [
+    "server.py is 995 lines (>700); split into routers (orders/notifications/admin/reply pages)",
+    "Nested Pressables in OrderCard (timeline link and reply button inside the card Pressable) work on web; check on native that the card does not also toggle",
+    "GET /orders/{id} correctly scoped (owner or admin, others 404); confirm_token/sent_to excluded"
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_notifications_timeline_colors.py"],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "~92% (all requested flows work; Blå ranking label issue)"},
+  "seed_data_creation": "Placed 1 order B10036 (id dd3fd3f9-26ae-4901-9cf7-b6820fb32890, comment TEST_iter8) as delivered@resend.dev, which emailed prii_de@hotmail.com, then admin-confirmed it. B10024 was declined via the email-link page. Reset 2 customer notifications to unread via the DB for UI testing (now read again). Total real emails: 3.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "pytest.ini adds -n/--dist (xdist); use -o addopts='' for single tests. Order recipient is prii_de@hotmail.com, so do not place orders unless needed. Customer notifications ids: 66f0a6dd... (B10036 confirmed), 44637bdd... (B10024 declined). The public URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env.",
+  "rca_of_issue": "Blå ranking: scraper.py:56 builds colour 'base' from Blåkläder colour ids. Some solid-named colours ('Svart', 'Mellangrå') carry the 'Blå' id upstream. The score rule treats a name without '/' plus any base hit as score 2 (solid), so these outrank real Marinblå items with a lower sort_index. Reproduce: GET /api/products?filters={\"Color\":[\"Blå\"]}&page_size=6, where the first item is 14531847 with colours ['Mörk marinblå/Svart','Svart']."
+}

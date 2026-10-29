@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/auth";
 import { Button, Icon, IconName } from "@/src/components/ui";
+import { NotificationBell } from "@/src/components/notification-bell";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -25,6 +26,7 @@ export default function Profile() {
             <Text style={styles.adminBadgeText}>ADMIN</Text>
           </View>
         )}
+        <NotificationBell />
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: bottomChrome + spacing.xl }}>
         <View style={styles.card}>

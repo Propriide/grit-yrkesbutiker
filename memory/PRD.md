@@ -44,3 +44,10 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Colour filter shows matching colour image on cards and opens PDP in that colour
 - Admin confirms orders in app (Alla ordrar → Bekräfta order sheet) – POST /api/admin/orders/{id}/reply, same email as web link
 - Admin sets new password for any user (PUT /api/admin/users/{id}/password)
+- In-app notifications (bell on Hem/Sortiment/Varukorg/Profil, /notifications) – orderer notified on confirm/decline, admins on new order; tap opens /order/[id]
+- Order timeline (Skickad → Bekräftad/Nekad with messages); admin can decline (app sheet + email page "Neka")
+- Colour filter ranking: solid colour first, combos later; card image + PDP colour use best match (src/color-match.ts)
+
+## Refactor (fork 2)
+- server.py (~1000 lines) split into: core.py (db, auth helpers, notify), routes/auth.py, routes/catalog.py (cities, start page, products), routes/orders.py (orders, notifications, email reply), routes/admin.py (settings, cities, users). server.py only wires routers + startup.
+- All 48 routes unchanged; 135/136 backend tests pass (1 blocked by email-service rate limit).

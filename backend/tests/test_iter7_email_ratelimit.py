@@ -104,27 +104,27 @@ class TestSendOrderReplyMessage:
                 "items": [], "replies": [], "comment": "", "created_at": "2026-01-01T00:00:00"}
 
     def test_rate_limit_detail_surfaced(self, monkeypatch):
-        import server
+        from routes import orders as server
 
         async def boom(**kw):
             raise HTTPException(503, RATE_MSG)
         monkeypatch.setattr(server, "send_email", boom)
 
         async def go():
-            server.client.get_io_loop = asyncio.get_running_loop  # bind motor to this loop
+            server.db.client.get_io_loop = asyncio.get_running_loop  # bind motor to this loop
             return await server.send_order_reply(self._order(), "Leverans torsdag")
         err = run(go())
         assert err == RATE_MSG
 
     def test_other_error_generic(self, monkeypatch):
-        import server
+        from routes import orders as server
 
         async def boom(**kw):
             raise HTTPException(502, "Kunde inte skicka e-post")
         monkeypatch.setattr(server, "send_email", boom)
 
         async def go():
-            server.client.get_io_loop = asyncio.get_running_loop
+            server.db.client.get_io_loop = asyncio.get_running_loop
             return await server.send_order_reply(self._order(), "Leverans torsdag")
         err = run(go())
         assert err == "Mejlet kunde inte skickas just nu. Försök igen om en stund."

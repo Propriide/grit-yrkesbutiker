@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, CategoryGroup, Product } from "@/src/api";
 import { Button, EmptyState, haptic, Icon } from "@/src/components/ui";
 import { filterCount, FilterSheet, FilterState } from "@/src/components/filter-sheet";
+import { NotificationBell } from "@/src/components/notification-bell";
+import { pickColor } from "@/src/color-match";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -84,6 +86,7 @@ export default function Shop() {
         <View style={[styles.titleRow, { paddingHorizontal: spacing.lg }]}>
           <View style={styles.mark} />
           <Text style={styles.title}>Sortiment</Text>
+          <NotificationBell />
         </View>
         <Text style={styles.pickHelp}>Välj vilket sortiment du vill se</Text>
         <View style={styles.pickWrap}>
@@ -118,6 +121,7 @@ export default function Shop() {
           <Text style={styles.count} testID="product-count">
             {total ? `${total} artiklar` : ""}
           </Text>
+          <NotificationBell />
         </View>
         <View style={styles.segment} testID="gender-toggle">
           {(
@@ -248,7 +252,7 @@ export default function Shop() {
           }
           ListFooterComponent={list.isFetchingNextPage ? <ActivityIndicator color={colors.brandPrimary} style={{ margin: spacing.lg }} /> : null}
           renderItem={({ item, index }) => {
-            const match = selColors.length ? item.colors?.find((c) => c.base?.some((b) => selColors.includes(b))) : undefined;
+            const match = pickColor(item.colors, selColors);
             const img = match?.image_url || item.image_url;
             return (
             <Animated.View entering={FadeInDown.delay((index % 10) * 40).duration(300)}>

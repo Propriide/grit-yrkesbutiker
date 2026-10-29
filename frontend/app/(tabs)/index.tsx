@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Linking, Pressable, RefreshControl, ScrollView, Text } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, StoreInfo } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { Button, Icon, IconName } from "@/src/components/ui";
+import { NotificationBell } from "@/src/components/notification-bell";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -28,6 +29,9 @@ export default function HomeScreen() {
       contentContainerStyle={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: bottomChrome + spacing.xl }}
       refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => home.refetch()} tintColor={colors.brandPrimary} />}
     >
+      <View style={{ alignItems: "flex-end", marginBottom: spacing.md }}>
+        <NotificationBell />
+      </View>
       <Animated.View entering={FadeInDown.duration(350)} style={styles.logoCard}>
         <Image testID="home-logo" source={require("../../assets/images/yp-logo.png")} style={styles.logo} contentFit="contain" />
       </Animated.View>

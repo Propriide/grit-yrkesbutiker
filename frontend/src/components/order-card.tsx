@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
@@ -17,6 +18,7 @@ export function OrderCard({ order, showCompany, onReply }: { order: Order; showC
   const qty = order.items.reduce((s, i) => s + i.quantity, 0);
   const sent = order.email_status === "sent";
   const confirmed = order.status === "confirmed";
+  const declined = order.status === "declined";
   const replies = order.replies ?? [];
   const lastReply = replies[replies.length - 1];
   return (
@@ -29,9 +31,9 @@ export function OrderCard({ order, showCompany, onReply }: { order: Order; showC
             {showCompany ? `  ·  ${order.customer.company}` : ""}
           </Text>
         </View>
-        <View style={[styles.status, sent ? styles.statusOk : styles.statusFail, confirmed && styles.statusConfirmed]} testID={`order-status-${order.order_number}`}>
-          <Text style={[styles.statusText, !sent && { color: colors.onError }, confirmed && { color: colors.onBrandSecondary }]}>
-            {confirmed ? "Bekräftad" : sent ? "Skickad" : "Ej skickad"}
+        <View style={[styles.status, sent ? styles.statusOk : styles.statusFail, confirmed && styles.statusConfirmed, declined && styles.statusFail]} testID={`order-status-${order.order_number}`}>
+          <Text style={[styles.statusText, (!sent || declined) && { color: colors.onError }, confirmed && { color: colors.onBrandSecondary }]}>
+            {confirmed ? "Bekräftad" : declined ? "Nekad" : sent ? "Skickad" : "Ej skickad"}
           </Text>
         </View>
         <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.muted} />
@@ -79,10 +81,14 @@ export function OrderCard({ order, showCompany, onReply }: { order: Order; showC
               <Text style={styles.comment}>{order.comment}</Text>
             </View>
           )}
+          <Pressable testID={`order-timeline-link-${order.order_number}`} onPress={() => router.push(`/order/${order.id}`)} style={styles.timelineLink}>
+            <Icon name="timeline-clock-outline" size={18} color={colors.brandPrimary} />
+            <Text style={styles.timelineLinkText}>Visa tidslinje</Text>
+          </Pressable>
           {onReply && (
             <Pressable testID={`order-reply-button-${order.order_number}`} onPress={onReply} style={styles.replyBtn}>
               <Icon name="check-decagram" size={20} color={colors.onBrandPrimary} />
-              <Text style={styles.replyBtnText}>{confirmed ? "Skicka nytt svar" : "Bekräfta order"}</Text>
+              <Text style={styles.replyBtnText}>{confirmed || declined ? "Skicka nytt svar" : "Bekräfta / neka order"}</Text>
             </Pressable>
           )}
         </View>
@@ -101,6 +107,8 @@ const useStyles = makeStyles((c) => ({
   statusFail: { backgroundColor: c.error },
   statusConfirmed: { backgroundColor: c.brandSecondary },
   replyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, minHeight: 48, borderRadius: radius.md, backgroundColor: c.brandPrimary, marginTop: spacing.md },
+  timelineLink: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44, marginTop: spacing.sm },
+  timelineLinkText: { color: c.brandPrimary, fontFamily: fonts.bodyBold, fontSize: 14 },
   replyBtnText: { color: c.onBrandPrimary, fontFamily: fonts.display, fontSize: 17, textTransform: "uppercase", letterSpacing: 1 },
   replyBox: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.sm, padding: spacing.md },
   replyText: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 14 },

@@ -27,14 +27,14 @@ export default function AdminOrders() {
     setError("");
   };
 
-  const send = async () => {
+  const send = async (action: "confirm" | "decline") => {
     if (!target || !message.trim()) return setError("Skriv ett meddelande till beställaren.");
     setSending(true);
     setError("");
     try {
-      await api(`/admin/orders/${target.id}/reply`, { method: "POST", body: { message: message.trim() } });
+      await api(`/admin/orders/${target.id}/reply`, { method: "POST", body: { message: message.trim(), action } });
       haptic("success");
-      toast(`Order ${target.order_number} bekräftad – svar skickat`, "success");
+      toast(`Order ${target.order_number} ${action === "confirm" ? "bekräftad" : "nekad"} – svar skickat`, "success");
       setTarget(null);
       q.refetch();
     } catch (e: any) {
@@ -63,7 +63,7 @@ export default function AdminOrders() {
           <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} testID="reply-sheet">
             <View style={styles.handle} />
             <View style={styles.sheetHead}>
-              <Text style={styles.sheetTitle}>Bekräfta {target?.order_number}</Text>
+              <Text style={styles.sheetTitle}>Svara på {target?.order_number}</Text>
               <Pressable testID="reply-sheet-close" onPress={() => setTarget(null)} hitSlop={8}>
                 <Icon name="close" size={24} color={colors.onSurface} />
               </Pressable>
@@ -84,7 +84,10 @@ export default function AdminOrders() {
               style={styles.input}
               textAlignVertical="top"
             />
-            <Button title="Bekräfta & skicka svar" icon="send" testID="reply-send-button" onPress={send} loading={sending} />
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <Button title="Neka" variant="danger" icon="close-octagon" testID="reply-decline-button" onPress={() => send("decline")} disabled={sending} style={{ flex: 1 }} />
+              <Button title="Bekräfta" icon="send" testID="reply-send-button" onPress={() => send("confirm")} loading={sending} style={{ flex: 2 }} />
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 9 retest of the 5 fixes from iteration 8. All 5 pass. FIX 1: the first page of the Blå filter is all solid blue (Mörk marinblå/Marinblå/Kornblå), with no 'Svart' or grey. Colour scores never go up across pages 1-3. The first page of the Svart filter is all solid 'Svart'. In the UI, Färg=Blå shows 669 articles. The first cards show navy images labelled 'Mörk marinblå'/'Marinblå'/'Kornblå'. Tapping a card opens /product/14631344?color=8600 with the 8600 tile active, FÄRG reading Mörk marinblå and the same image as the card. FIX 2: notification-bell is visible on gender-picker (44x44) and opens /notifications. Going back returns to the picker. FIX 3: checked by code review and a source test. After the email fails, the code goes on to the admin notify loop, and the title ends with ' (mejlet kunde inte skickas)'. FIX 4: unread equals the DB count_documents result. With 105 extra unread notifications seeded, items capped at 100 and unread was 105 or more. The test data was removed afterwards. FIX 5: the timeline testIDs are unique, e.g. timeline-step-skickad-0, -bekräftad-1, -nekad-2. Backend tests: 7/7 pass. No orders placed, no emails sent, no catalog sync. No deprecated Expo packages detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter9_color_rank_notif_fixes.py", "/app/test_reports/pytest/pytest_iter9.xml"],
+  "action_items": [
+    "Optional/minor: the 'pending' timeline step label 'Väntar på bekräftelse' gives a testID with spaces (timeline-step-väntar på bekräftelse-N). Consider using s.key instead of the label in the testID."
+  ],
+  "critical_code_review_comments": [
+    "server.py create_order: if notify() raises (DB error), the order is already saved but the customer gets a 500. Consider wrapping the notify loop in try/except and logging the error.",
+    "Backend $switch scoring (server.py:477-481) and src/color-match.ts pickColor use the same scores (3/2/1/0), so the list ranking and the card/PDP colour agree."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter9_color_rank_notif_fixes.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "105 temporary TEST_ notifications for delivered@resend.dev, removed in the finally block",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run the iter9 tests with: cd /app/backend && python -m pytest tests/test_iter9_color_rank_notif_fixes.py -n 0. They place no orders and send no emails. Do not run test_iter8 (places an order and sends real email). Order ids: B10036=dd3fd3f9-26ae-4901-9cf7-b6820fb32890 (confirmed), B10024=5da06615-6793-433d-93a0-61305bc41fe3 (declined). The public URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env."
+}

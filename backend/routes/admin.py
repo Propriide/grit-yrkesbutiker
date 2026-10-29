@@ -1,0 +1,166 @@
+import asyncio
+import re
+import uuid
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr, Field
+
+import scraper
+from core import admin_only, db, hash_pw, now_iso, public_user
+
+router = APIRouter()
+
+
+class CityIn(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class SettingsIn(BaseModel):
+    order_email: EmailStr
+
+
+class UserUpdate(BaseModel):
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    org_number: Optional[str] = None
+    city_id: Optional[str] = None
+    disabled: Optional[bool] = None
+    role: Optional[str] = None
+
+
+class AdminPasswordIn(BaseModel):
+    new_password: str = Field(min_length=6, max_length=72)
+
+
+@router.put("/admin/users/{user_id}/password")
+async def admin_set_password(user_id: str, body: AdminPasswordIn, _: dict = Depends(admin_only)):
+    r = await db.users.update_one({"id": user_id}, {"$set": {"password_hash": hash_pw(body.new_password)}})
+    if not r.matched_count:
+        raise HTTPException(404, "Kontot hittades inte")
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+    await db.login_attempts.delete_many({"email": u["email"]})
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- admin
+@router.get("/admin/settings")
+async def get_settings(_: dict = Depends(admin_only)):
+    s = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    return {"order_email": s.get("order_email", ""), "catalog": {**scraper.status},
+            "product_count": await db.products.count_documents({"active": {"$ne": False}})}
+
+
+@router.put("/admin/settings")
+async def put_settings(body: SettingsIn, _: dict = Depends(admin_only)):
+    await db.settings.update_one({"id": "global"}, {"$set": {"order_email": body.order_email.lower()}}, upsert=True)
+    return {"order_email": body.order_email.lower()}
+
+
+@router.post("/admin/catalog/sync")
+async def sync_catalog(_: dict = Depends(admin_only)):
+    if not scraper.status["running"]:
+        asyncio.create_task(scraper.scrape_catalog(db))
+    return {"started": True}
+
+
+@router.post("/admin/cities")
+async def add_city(body: CityIn, _: dict = Depends(admin_only)):
+    name = body.name.strip()
+    if await db.cities.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}):
+        raise HTTPException(409, "Orten finns redan")
+    city = {"id": str(uuid.uuid4()), "name": name}
+    await db.cities.insert_one(dict(city))
+    return city
+
+
+@router.put("/admin/cities/{city_id}")
+async def rename_city(city_id: str, body: CityIn, _: dict = Depends(admin_only)):
+    name = body.name.strip()
+    if await db.cities.find_one({"id": {"$ne": city_id}, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}):
+        raise HTTPException(409, "Orten finns redan")
+    r = await db.cities.update_one({"id": city_id}, {"$set": {"name": body.name.strip()}})
+    if not r.matched_count:
+        raise HTTPException(404, "Orten hittades inte")
+    return {"id": city_id, "name": body.name.strip()}
+
+
+@router.delete("/admin/cities/{city_id}")
+async def delete_city(city_id: str, _: dict = Depends(admin_only)):
+    r = await db.cities.delete_one({"id": city_id})
+    if not r.deleted_count:
+        raise HTTPException(404, "Orten hittades inte")
+    await db.users.update_many({"city_id": city_id}, {"$set": {"city_id": None}})
+    return {"ok": True}
+
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=72)
+    phone: str = Field(default="", max_length=40)
+    company: str = Field(min_length=1, max_length=200)
+    org_number: Optional[str] = ""
+    city_id: Optional[str] = None
+    role: str = "customer"
+
+
+@router.post("/admin/users")
+async def admin_create_user(body: AdminUserCreate, _: dict = Depends(admin_only)):
+    email = body.email.strip().lower()
+    if body.role not in ("customer", "admin"):
+        raise HTTPException(400, "Ogiltig roll")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(409, "E-postadressen är redan registrerad")
+    if body.city_id and not await db.cities.find_one({"id": body.city_id}):
+        raise HTTPException(400, "Ogiltig ort")
+    user = {
+        "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
+        "phone": body.phone.strip(), "company": body.company.strip(), "org_number": (body.org_number or "").strip(),
+        "city_id": body.city_id or None, "role": body.role, "disabled": False, "created_at": now_iso(),
+    }
+    await db.users.insert_one(dict(user))
+    return await public_user(user)
+
+
+@router.get("/admin/users")
+async def admin_users(q: str = "", _: dict = Depends(admin_only)):
+    flt: dict = {}
+    if q.strip():
+        rx = {"$regex": re.escape(q.strip()), "$options": "i"}
+        flt["$or"] = [{"email": rx}, {"company": rx}]
+    users = await db.users.find(flt, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    return [await public_user(u) for u in users]
+
+
+@router.get("/admin/users/{user_id}")
+async def admin_user(user_id: str, _: dict = Depends(admin_only)):
+    u = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not u:
+        raise HTTPException(404, "Kontot hittades inte")
+    orders = await db.orders.count_documents({"user_id": user_id})
+    return {**await public_user(u), "order_count": orders}
+
+
+@router.put("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, body: UserUpdate, admin: dict = Depends(admin_only)):
+    upd = body.model_dump(exclude_none=True)
+    if "role" in upd and upd["role"] not in ("customer", "admin"):
+        raise HTTPException(400, "Ogiltig roll")
+    if user_id == admin["id"] and (upd.get("disabled") or upd.get("role") == "customer"):
+        raise HTTPException(400, "Du kan inte spärra eller degradera ditt eget konto")
+    if upd.get("city_id") and not await db.cities.find_one({"id": upd["city_id"]}):
+        raise HTTPException(400, "Ogiltig ort")
+    if upd.get("city_id") == "":
+        upd["city_id"] = None
+    r = await db.users.update_one({"id": user_id}, {"$set": upd})
+    if not r.matched_count:
+        raise HTTPException(404, "Kontot hittades inte")
+    return await public_user(await db.users.find_one({"id": user_id}, {"_id": 0}))
+
+
+@router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, admin: dict = Depends(admin_only)):
+    if user_id == admin["id"]:
+        raise HTTPException(400, "Du kan inte ta bort ditt eget konto")
+    await db.users.delete_one({"id": user_id})
+    return {"ok": True}

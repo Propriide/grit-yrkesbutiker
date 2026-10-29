@@ -52,6 +52,16 @@ export type Product = {
   categories?: string[];
 };
 export type FilterDef = { code: string; name: string; values: { value: string; count: number }[] };
+export type AppNotification = {
+  id: string;
+  kind: "new" | "confirmed" | "declined";
+  order_id: string;
+  order_number: string;
+  title: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+};
 export type StoreInfo = { title: string; text: string; address: string; phone: string; email: string; hours: string };
 export type CategoryGroup = {
   slug: string;
@@ -89,7 +99,7 @@ export type Order = {
   comment: string;
   created_at: string;
   email_status: string;
-  status?: "new" | "confirmed";
-  replies?: { message: string; created_at: string }[];
+  status?: "new" | "confirmed" | "declined";
+  replies?: { message: string; created_at: string; action?: "confirm" | "decline" }[];
   customer: { company: string; email: string };
 };
