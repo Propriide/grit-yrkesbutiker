@@ -51,3 +51,9 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 ## Refactor (fork 2)
 - server.py (~1000 lines) split into: core.py (db, auth helpers, notify), routes/auth.py, routes/catalog.py (cities, start page, products), routes/orders.py (orders, notifications, email reply), routes/admin.py (settings, cities, users). server.py only wires routers + startup.
 - All 48 routes unchanged; 135/136 backend tests pass (1 blocked by email-service rate limit).
+
+## Iteration 10 (fork 2)
+- Favourites (product + colour) per customer: /api/favorites, heart on product page, Profil → Mina favoriter.
+- "Beställ igen" on own order detail adds all items to existing cart.
+- Companies: grouped case/space-insensitively (/api/admin/companies, /api/admin/company-users); admin Kunder has Konton/Företag view + company page; CompanyInput (type or dropdown) on admin create/edit; company names snap to existing spelling on save/register.
+- Shop: vertical category dropdown (accordion of sub-categories, closes on choice).

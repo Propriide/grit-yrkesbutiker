@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from core import current_user, db, hash_pw, logger, make_token, now_iso, public_user, verify_pw
+from core import canonical_company, current_user, db, hash_pw, logger, make_token, now_iso, public_user, verify_pw
 from emailer import EMAIL_FROM_NAME, send_email
 
 router = APIRouter()
@@ -39,7 +39,7 @@ async def register(body: RegisterIn):
         raise HTTPException(400, "Välj ort")
     user = {
         "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
-        "phone": body.phone.strip(), "company": body.company.strip(),
+        "phone": body.phone.strip(), "company": await canonical_company(body.company),
         "org_number": (body.org_number or "").strip(), "city_id": body.city_id,
         "role": "customer", "disabled": False, "created_at": now_iso(),
     }
@@ -107,7 +107,7 @@ MAX_RESET_ATTEMPTS = 5
 async def update_me(body: ProfileUpdate, user: dict = Depends(current_user)):
     if body.city_id and not await db.cities.find_one({"id": body.city_id}):
         raise HTTPException(400, "Ogiltig ort")
-    upd = {"phone": body.phone.strip(), "company": body.company.strip(),
+    upd = {"phone": body.phone.strip(), "company": await canonical_company(body.company),
            "org_number": (body.org_number or "").strip(), "city_id": body.city_id or None}
     await db.users.update_one({"id": user["id"]}, {"$set": upd})
     return await public_user({**user, **upd})

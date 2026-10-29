@@ -6,9 +6,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useCart } from "@/src/cart";
 import { formatDate } from "@/src/components/order-card";
-import { Button, EmptyState, Icon, IconName, ScreenHeader } from "@/src/components/ui";
+import { Button, EmptyState, haptic, Icon, IconName, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { useToast } from "@/src/toast";
 
 type Step = { key: string; label: string; icon: IconName; date?: string; message?: string; tone: "done" | "pending" | "declined" };
 
@@ -29,6 +31,8 @@ export default function OrderDetail() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const cart = useCart();
+  const toast = useToast();
   const q = useQuery({ queryKey: ["order", id], queryFn: () => api<Order>(`/orders/${id}`) });
   const o = q.data;
 
@@ -89,6 +93,22 @@ export default function OrderDetail() {
                 <Text style={styles.stepMsg}>{o.comment}</Text>
               </View>
             </>
+          )}
+          {o.user_id === user?.id && (
+            <Button
+              title="Beställ igen"
+              icon="cart-arrow-down"
+              testID="order-reorder-button"
+              style={{ marginTop: spacing.xl }}
+              onPress={() => {
+                for (const i of o.items) {
+                  cart.add({ part_no: i.part_no, name: i.name, image_url: i.image_url, color_code: i.color_code, color_name: i.color_name, size: i.size, quantity: i.quantity });
+                }
+                haptic("success");
+                toast(`${o.items.reduce((s, i) => s + i.quantity, 0)} st lagda i varukorgen`, "success");
+                router.push("/(tabs)/cart");
+              }}
+            />
           )}
           {user?.role === "admin" && (
             <Button title="Bekräfta / neka i Alla ordrar" icon="clipboard-list" variant="secondary" testID="order-manage-button" onPress={() => router.push("/admin/orders")} style={{ marginTop: spacing.xl }} />

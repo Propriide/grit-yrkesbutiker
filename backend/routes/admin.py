@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 import scraper
-from core import admin_only, db, hash_pw, now_iso, public_user
+from core import admin_only, canonical_company, db, hash_pw, now_iso, public_user
 
 router = APIRouter()
 
@@ -115,7 +115,7 @@ async def admin_create_user(body: AdminUserCreate, _: dict = Depends(admin_only)
         raise HTTPException(400, "Ogiltig ort")
     user = {
         "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
-        "phone": body.phone.strip(), "company": body.company.strip(), "org_number": (body.org_number or "").strip(),
+        "phone": body.phone.strip(), "company": await canonical_company(body.company), "org_number": (body.org_number or "").strip(),
         "city_id": body.city_id or None, "role": body.role, "disabled": False, "created_at": now_iso(),
     }
     await db.users.insert_one(dict(user))
@@ -152,10 +152,44 @@ async def admin_update_user(user_id: str, body: UserUpdate, admin: dict = Depend
         raise HTTPException(400, "Ogiltig ort")
     if upd.get("city_id") == "":
         upd["city_id"] = None
+    if "company" in upd:
+        upd["company"] = await canonical_company(upd["company"])
+        if not upd["company"]:
+            raise HTTPException(400, "Företag är obligatoriskt")
     r = await db.users.update_one({"id": user_id}, {"$set": upd})
     if not r.matched_count:
         raise HTTPException(404, "Kontot hittades inte")
     return await public_user(await db.users.find_one({"id": user_id}, {"_id": 0}))
+
+
+def company_key(name: str) -> str:
+    """Same company regardless of case or extra spaces: 'Patriks  Bygg' == 'patriks bygg'."""
+    return " ".join((name or "").split()).lower()
+
+
+@router.get("/admin/companies")
+async def admin_companies(_: dict = Depends(admin_only)):
+    groups: dict = {}
+    async for u in db.users.find({}, {"_id": 0, "company": 1}):
+        name = " ".join((u.get("company") or "").split())
+        if not name:
+            continue
+        g = groups.setdefault(company_key(name), {"key": company_key(name), "spellings": {}, "count": 0})
+        g["count"] += 1
+        g["spellings"][name] = g["spellings"].get(name, 0) + 1
+    out = [{"key": g["key"], "name": max(g["spellings"], key=g["spellings"].get), "count": g["count"],
+            "spellings": sorted(g["spellings"])} for g in groups.values()]
+    return sorted(out, key=lambda c: c["name"].lower())
+
+
+@router.get("/admin/company-users")
+async def admin_company_users(name: str, _: dict = Depends(admin_only)):
+    words = name.split()
+    if not words:
+        raise HTTPException(400, "Ange företagsnamn")
+    rx = {"$regex": r"^\s*" + r"\s+".join(re.escape(w) for w in words) + r"\s*$", "$options": "i"}
+    users = await db.users.find({"company": rx}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(1000)
+    return [await public_user(u) for u in users]
 
 
 @router.delete("/admin/users/{user_id}")

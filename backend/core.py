@@ -1,6 +1,7 @@
 """Shared database client, auth helpers and dependencies."""
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -65,6 +66,20 @@ async def public_user(u: dict) -> dict:
         "city_id": u.get("city_id"), "city_name": await city_name(u.get("city_id")),
         "disabled": u.get("disabled", False), "created_at": u.get("created_at"),
     }
+
+
+async def canonical_company(name: str) -> str:
+    """Collapse spaces and reuse an existing company's spelling when it matches ignoring case."""
+    clean = " ".join((name or "").split())
+    if not clean:
+        return clean
+
+    rx = {"$regex": r"^\s*" + r"\s+".join(re.escape(w) for w in clean.split()) + r"\s*$", "$options": "i"}
+    counts: dict = {}
+    async for u in db.users.find({"company": rx}, {"_id": 0, "company": 1}):
+        s = " ".join(u["company"].split())
+        counts[s] = counts.get(s, 0) + 1
+    return max(counts, key=counts.get) if counts else clean
 
 
 async def current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:

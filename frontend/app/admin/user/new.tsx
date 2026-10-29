@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, City } from "@/src/api";
 import { CityPicker } from "@/src/components/city-picker";
+import { CompanyInput } from "@/src/components/company-input";
 import { Button, ErrorBanner, Field, haptic, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -37,6 +38,7 @@ export default function AdminCreateUser() {
       haptic("success");
       toast(`Kontot ${f.email.trim()} är skapat`, "success");
       qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-companies"] });
       router.back();
     } catch (e: any) {
       haptic("error");
@@ -54,7 +56,7 @@ export default function AdminCreateUser() {
         <Field label="E-post" testID="new-user-email-input" value={f.email} onChangeText={set("email")} autoCapitalize="none" keyboardType="email-address" placeholder="namn@foretag.se" />
         <Field label="Lösenord" testID="new-user-password-input" value={f.password} onChangeText={set("password")} secureTextEntry placeholder="Minst 6 tecken" />
         <Field label="Telefonnummer" optional testID="new-user-phone-input" value={f.phone} onChangeText={set("phone")} keyboardType="phone-pad" />
-        <Field label="Företag" testID="new-user-company-input" value={f.company} onChangeText={set("company")} />
+        <CompanyInput value={f.company} onChange={set("company")} testID="new-user-company-input" />
         <Field label="Organisationsnummer" optional testID="new-user-orgnr-input" value={f.org_number} onChangeText={set("org_number")} />
         <CityPicker cities={cities.data ?? []} value={f.city_id} onChange={set("city_id")} testID="new-user-city-picker" allowNone />
         <View style={styles.switchRow}>

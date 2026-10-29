@@ -7,7 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 import scraper
 from core import client, db, hash_pw, logger, now_iso
-from routes import admin, auth, catalog, orders
+from routes import admin, auth, catalog, favorites, orders
 from routes.auth import LOCKOUT_MINUTES
 
 app = FastAPI()
@@ -20,7 +20,7 @@ async def health():
 
 
 api = APIRouter(prefix="/api")
-for r in (auth.router, catalog.router, orders.router, admin.router):
+for r in (auth.router, catalog.router, orders.router, admin.router, favorites.router):
     api.include_router(r)
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=False, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -38,6 +38,7 @@ async def startup():
     await db.password_resets.create_index("expire_at", expireAfterSeconds=0)
     await db.password_resets.create_index("email")
     await db.orders.create_index("order_number", unique=True)
+    await db.favorites.create_index([("user_id", 1), ("part_no", 1), ("color_code", 1)], unique=True)
     if not await db.counters.find_one({"id": "order_number"}):
         await db.counters.insert_one({"id": "order_number", "seq": await db.orders.count_documents({})})
     seeds = [(os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"])]

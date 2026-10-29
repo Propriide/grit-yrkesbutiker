@@ -83,6 +83,8 @@ export type User = {
   order_count?: number;
 };
 export type City = { id: string; name: string };
+export type Favorite = { id: string; part_no: string; name: string; color_code: string | null; color_name: string | null; image_url?: string; created_at: string };
+export type Company = { key: string; name: string; count: number; spellings: string[] };
 export type OrderItem = {
   part_no: string;
   name: string;
@@ -95,6 +97,7 @@ export type OrderItem = {
 export type Order = {
   id: string;
   order_number: string;
+  user_id?: string;
   items: OrderItem[];
   comment: string;
   created_at: string;

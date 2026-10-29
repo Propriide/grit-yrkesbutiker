@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, City, User } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CityPicker } from "@/src/components/city-picker";
+import { CompanyInput } from "@/src/components/company-input";
 import { Button, ErrorBanner, Field, haptic, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -68,6 +69,8 @@ export default function AdminUserDetail() {
       await api(`/admin/users/${id}`, { method: "PUT", body: { ...f, city_id: f.city_id ?? "" } });
       toast("Kontot uppdaterat", "success");
       qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-companies"] });
+      qc.invalidateQueries({ queryKey: ["admin-company-users"] });
       q.refetch();
     } catch (e: any) {
       haptic("error");
@@ -102,7 +105,12 @@ export default function AdminUserDetail() {
             </Text>
             <Text style={styles.statLabel}>ordrar</Text>
           </View>
-          <Field label="Företag" testID="user-company-input" value={f.company} onChangeText={set("company")} />
+          {!!q.data?.company && (
+            <Pressable testID="user-company-link" onPress={() => router.push(`/admin/company?name=${encodeURIComponent(q.data!.company)}`)} style={styles.companyLink}>
+              <Text style={styles.companyLinkText}>Visa alla på {q.data.company} ›</Text>
+            </Pressable>
+          )}
+          <CompanyInput value={f.company} onChange={set("company")} testID="user-company-input" />
           <Field label="Organisationsnummer" optional testID="user-orgnr-input" value={f.org_number} onChangeText={set("org_number")} />
           <Field label="Telefon" testID="user-phone-input" value={f.phone} onChangeText={set("phone")} keyboardType="phone-pad" />
           <CityPicker cities={cities.data ?? []} value={f.city_id} onChange={set("city_id")} testID="user-city-picker" allowNone />
@@ -172,6 +180,8 @@ const useStyles = makeStyles((c) => ({
   stats: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, marginBottom: spacing.lg },
   statNum: { color: c.brandSecondary, fontFamily: fonts.displayHeavy, fontSize: 36 },
   statLabel: { color: c.muted, fontFamily: fonts.body, fontSize: 14 },
+  companyLink: { minHeight: 44, justifyContent: "center", marginTop: -spacing.md, marginBottom: spacing.sm },
+  companyLinkText: { color: c.brandPrimary, fontFamily: fonts.bodyBold, fontSize: 14 },
   switchRow: { flexDirection: "row", alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.lg, marginBottom: spacing.sm },
   switchTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
   switchSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },

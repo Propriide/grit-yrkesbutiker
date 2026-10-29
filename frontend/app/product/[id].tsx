@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, Product } from "@/src/api";
 import { useCart } from "@/src/cart";
+import { useFavorites } from "@/src/favorites";
 import { Button, EmptyState, haptic, Icon, Stepper } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -35,6 +36,28 @@ export default function ProductDetail() {
 
   const selColor = p?.colors?.find((c) => c.code === color);
   const image = selColor?.image_url || p?.image_url;
+  const favs = useFavorites();
+  const fav = p ? favs.find(p.part_no, selColor?.code) : undefined;
+  const [favBusy, setFavBusy] = useState(false);
+
+  const toggleFav = async () => {
+    if (!p) return;
+    setFavBusy(true);
+    try {
+      if (fav) {
+        await favs.remove(fav.id);
+        toast("Borttagen från favoriter", "success");
+      } else {
+        await favs.add(p.part_no, selColor?.code);
+        haptic("success");
+        toast(`${p.name}${selColor ? ` (${selColor.name})` : ""} sparad som favorit`, "success");
+      }
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setFavBusy(false);
+    }
+  };
 
   const add = () => {
     if (!p) return;
@@ -55,14 +78,21 @@ export default function ProductDetail() {
         <Pressable testID="product-back-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/shop"))} style={styles.roundBtn}>
           <Icon name="arrow-left" size={24} color={colors.onSurface} />
         </Pressable>
-        <Pressable testID="product-cart-button" onPress={() => router.push("/(tabs)/cart")} style={styles.roundBtn}>
-          <Icon name="cart" size={22} color={colors.onSurface} />
-          {cart.count > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{cart.count}</Text>
-            </View>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          {p && (
+            <Pressable testID="product-favorite-button" onPress={toggleFav} disabled={favBusy} style={[styles.roundBtn, fav && styles.favActive]}>
+              <Icon name={fav ? "heart" : "heart-outline"} size={22} color={fav ? colors.onBrandPrimary : colors.onSurface} />
+            </Pressable>
           )}
-        </Pressable>
+          <Pressable testID="product-cart-button" onPress={() => router.push("/(tabs)/cart")} style={styles.roundBtn}>
+            <Icon name="cart" size={22} color={colors.onSurface} />
+            {cart.count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{cart.count}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       {q.isLoading ? (
@@ -157,6 +187,7 @@ const useStyles = makeStyles((c) => ({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   topBar: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, backgroundColor: c.surface, borderBottomWidth: 1, borderBottomColor: c.divider },
   roundBtn: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border },
+  favActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
   badge: { position: "absolute", top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: c.brandSecondary, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   badgeText: { color: c.onBrandSecondary, fontFamily: fonts.bodyBold, fontSize: 11 },
   hero: { backgroundColor: "#F2F2F2", height: 380, paddingBottom: spacing.lg },

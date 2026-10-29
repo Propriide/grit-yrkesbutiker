@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 10 tested favourites, 'Beställ igen' (reorder), company grouping and the admin company input, the vertical category dropdown, and regression after the server.py refactor into core.py + routes/*. New backend suite test_iter10_favorites_companies.py: 11/11 pass. Regression run of iter4, iter5, iter9 and iter7_email_ratelimit: 45/45 pass. test_blaklader_api + iter3 with order, sync and reply tests deselected: 32/32 pass. Frontend at 375x667, all flows pass. (1) Product heart (product-favorite-button, 44x44) toggles on and off with toasts 'sparad som favorit' / 'Borttagen från favoriter'. (2) Profil > my-favorites-row opens /favorites with favorite-row-11451648-8933. Tapping it opens /product/11451648?color=8933 with FÄRG Marinblå/Varselgul preselected and the heart active. favorite-remove removes the row and shows the empty state. (3) order-reorder-button ADDS to the existing cart: qty 1 + 2 = 3, same key merged, then navigates to /cart with toast. (4) Shop: category-dropdown-toggle opens a vertical list. group-chip-overdelar unfolds 8 subcategories downward. Picking Fleecejackor closes the dropdown, the value shows 'ÖVERDELAR › FLEECEJACKOR', and the list drops from 1236 to 3 artiklar. category-chip-alla gives 505 and group-chip-alla gives back 1236. (5) Admin users-view-companies lists company-row-*. 'TEST_UI Bygg' and 'test_ui  bygg' are grouped (2 personer · 2 stavningar). Search works, and the row opens /admin/company?name= with both users. (6) On user edit, user-company-input-toggle opens a dropdown of all companies. Selecting an option sets the value and closes the dropdown. Typing filters the list, the match hint works even for messy spacing or case, and an unknown name shows 'ett nytt skapas'. Save works and user-company-link opens the company list. No page errors. No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/users, POST /api/auth/register", "issue": "company is only .strip()'d, so internal double spaces are kept ('test_ui  bygg' was stored as-is). PUT /admin/users/{id} collapses them. Grouping still works through company_key, but stored data is inconsistent."},
+      {"endpoint": "POST /api/favorites", "issue": "Dedupe is find-then-insert with no unique index on (user_id, part_no, color_code), so concurrent requests can create duplicates. The UI disables the button while busy, so the risk is low."},
+      {"endpoint": "DELETE /api/favorites/{id}", "issue": "Returns 200 {ok:true} even when the favourite does not exist or belongs to another user. It is not a security issue, because nothing is deleted."},
+      {"endpoint": "GET /api/admin/companies", "issue": "Admin accounts are included (an 'Admin' company with 2 personer appears). This may be intended."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "admin/user/[id] CompanyInput", "issues": ["If an admin types a messy spelling that matches an existing company (e.g. '  test_other   ab '), the hint says 'Kopplas till TEST_Other AB' but the typed spelling is saved (backend collapses it to 'test_other ab'). This creates a new spelling variant. Consider using the canonical match.name on save.", "The match hint 'Kopplas till X (n konton)' is also shown when the company is unchanged. This is harmless but a bit noisy."]},
+      {"screen": "cart (after Beställ igen)", "issues": ["The success toast briefly covers the cart-checkout-button. It is transient."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter10_favorites_companies.py", "/app/test_reports/pytest/iter10.xml", "/app/test_reports/pytest/iter10_regression.xml"],
+  "action_items": [
+    "Optional: collapse internal whitespace in company on register and admin-create, the same way PUT /admin/users does.",
+    "Optional: in CompanyInput/save, replace the value with the canonical existing name when companyKey matches.",
+    "Optional: add a unique index on favorites (user_id, part_no, color_code)."
+  ],
+  "critical_code_review_comments": [
+    "Reorder (order/[id].tsx:103) adds items without checking that the product is still active or the size still exists. Discontinued items would end up in the cart.",
+    "favorites.tsx appends '?w=200' to image_url. This breaks if image_url already has a query string.",
+    "The refactored modules are all under 340 lines and the routers work. queryClient.clear() on logout prevents favourites leaking between users."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter10_favorites_companies.py"],
+  "success_rate": {"backend": "100% (11/11 new, 77/77 regression subset)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Temporary TEST_ users and companies were created and then deleted. A favourite for delivered@resend.dev was added and removed. No orders placed, no emails sent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && export EXPO_BACKEND_URL=$(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env | cut -d= -f2) && python -m pytest tests/test_iter10_favorites_companies.py tests/test_iter4_fixes.py tests/test_iter5_accounts_passwords.py tests/test_iter9_color_rank_notif_fixes.py -n 0. iter4 and iter5 need the EXPO_BACKEND_URL env var. Do not run order or reply tests (iter8, iter2, blaklader order tests) because they send email. delivered@resend.dev has orders B10040 (7b690251-..., 1x 11451648/8933/C44) and B10038 (50ff2137-..., qty 2), useful for reorder."
+}

@@ -2,12 +2,13 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, CategoryGroup, Product } from "@/src/api";
 import { Button, EmptyState, haptic, Icon } from "@/src/components/ui";
+import { CategoryPicker } from "@/src/components/category-picker";
 import { filterCount, FilterSheet, FilterState } from "@/src/components/filter-sheet";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { pickColor } from "@/src/color-match";
@@ -67,12 +68,6 @@ export default function Shop() {
   const syncing = list.data?.pages[0]?.syncing;
 
   const groups = cats.data ?? [];
-  const activeGroup = groups.find((g) => g.slug === group);
-  const selectGroup = (slug: string) => {
-    haptic("selection");
-    setGroup(slug);
-    setCategory("");
-  };
   const pickGender = (v: "" | "herr" | "dam") => {
     haptic("selection");
     setGender(v);
@@ -174,44 +169,15 @@ export default function Shop() {
             )}
           </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipContent}>
-          {[{ slug: "", name: "Alla" }, ...groups].map((g) => {
-            const active = g.slug === group;
-            return (
-              <Pressable
-                key={g.slug || "all"}
-                testID={`group-chip-${g.slug || "alla"}`}
-                hitSlop={{ top: 6, bottom: 6 }}
-                onPress={() => selectGroup(g.slug)}
-                style={[styles.chip, active && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{g.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        {activeGroup && activeGroup.children.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subRow} contentContainerStyle={styles.chipContent}>
-            {[{ slug: "", name: `Alla ${activeGroup.name.toLowerCase()}`, count: activeGroup.count }, ...activeGroup.children].map((c) => {
-              const active = c.slug === category;
-              return (
-                <Pressable
-                  key={c.slug || "all"}
-                  testID={`category-chip-${c.slug || "alla"}`}
-                  onPress={() => {
-                    haptic("selection");
-                    setCategory(c.slug);
-                  }}
-                  style={[styles.subChip, active && styles.subChipActive]}
-                >
-                  <Text style={[styles.subChipText, active && styles.subChipTextActive]}>
-                    {c.name} <Text style={styles.subCount}>{c.count}</Text>
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        )}
+        <CategoryPicker
+          groups={groups}
+          group={group}
+          category={category}
+          onSelect={(gs, cs) => {
+            setGroup(gs);
+            setCategory(cs);
+          }}
+        />
       </View>
 
       {list.isLoading ? (
@@ -321,35 +287,6 @@ const useStyles = makeStyles((c) => ({
     borderColor: c.border,
   },
   searchInput: { flex: 1, color: c.onSurface, fontFamily: fonts.body, fontSize: 15, height: 48, ...({ outlineWidth: 0 } as object) },
-  chipRow: { height: 56, flexGrow: 0, marginHorizontal: -spacing.lg },
-  chipContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: "center" },
-  chip: {
-    height: 36,
-    flexShrink: 0,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: c.border,
-    backgroundColor: c.surfaceSecondary,
-    justifyContent: "center",
-  },
-  chipActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
-  chipText: { color: c.onSurfaceSecondary, fontFamily: fonts.bodyBold, fontSize: 13 },
-  chipTextActive: { color: c.onBrandPrimary },
-  subRow: { height: 48, flexGrow: 0, marginHorizontal: -spacing.lg, marginTop: -spacing.sm },
-  subChip: {
-    height: 36,
-    flexShrink: 0,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: c.border,
-    justifyContent: "center",
-  },
-  subChipActive: { borderColor: c.brandSecondary, backgroundColor: c.brandTertiary },
-  subChipText: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 13 },
-  subChipTextActive: { color: c.brandSecondary },
-  subCount: { color: c.muted, fontSize: 11 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg, padding: spacing.lg },
   skeleton: { height: 250, borderRadius: radius.md, backgroundColor: c.surfaceSecondary },
   listContent: { padding: spacing.lg, gap: spacing.lg },
