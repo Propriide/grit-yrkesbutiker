@@ -693,8 +693,8 @@ async def send_order_reply(order: dict, message: str) -> Optional[str]:
     settings = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
     try:
         await send_email(to=order["customer"]["email"], subject=subject, html=html, reply_to=settings.get("order_email"))
-    except HTTPException:
-        return "Mejlet kunde inte skickas just nu. Försök igen om en stund."
+    except HTTPException as e:
+        return e.detail if e.status_code == 503 else "Mejlet kunde inte skickas just nu. Försök igen om en stund."
     reply = {"message": message, "created_at": now_iso()}
     await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply},
                                                      "$set": {"status": "confirmed", "confirmed_at": reply["created_at"]}})

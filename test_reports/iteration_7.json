@@ -1,0 +1,36 @@
+{
+  "summary": "Tested the email rate-limit (429) retry fix. Unit tests with mocked httpx: 9/9 passed. A 429 followed by 200 succeeds with a 2s backoff. Backoff runs 2,4,8s, uses Retry-After when given and caps it at 15s. Four 429s in a row give 503 with the Swedish rate-limit message. 422, 500 and 402 insufficient_credits are not retried. send_order_reply shows the 503 text and the generic message for other errors. Integration: 4/4 passed with 2 real emails to delivered@resend.dev (both 202). The email-link POST /api/order-reply/{token} returned the 'Svar skickat' page and set order B10031 to confirmed. The admin reply POST /api/admin/orders/{id}/reply returned 200 with no confirm_token or _id. Frontend (375x667): Alla ordrar -> B10031 -> reply sheet. A mocked 400 rate-limit response shows the new clear message in reply-error. One real send returned 200, closed the sheet, showed the toast and set status to BEKRÄFTAD. 3 real emails in total, all to delivered@resend.dev. No new order was placed, so no email went to prii_de@hotmail.com, and order_email was left unchanged. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "emailer.send_email", "issue": "It retries on every HTTP 429, whatever the error code. If the provider ever sends daily_limit_reached or another non-burst code as 429, the request waits about 14s for nothing before returning the 503 'E-post är tillfälligt otillgänglig'. Suggestion: retry only when the body code is 'rate_limited'."},
+      {"endpoint": "POST /api/orders", "issue": "Pre-existing behaviour: if the order email is still rate-limited after retries, the order is saved with email_status=failed. There is no admin or background way to resend the order email to the recipient."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter7_email_ratelimit.py",
+    "/app/backend/tests/test_iter7_reply_integration.py",
+    "/app/test_reports/pytest/iter7_unit.xml",
+    "/app/test_reports/pytest/iter7_integration.xml"
+  ],
+  "action_items": [
+    "Optional: in emailer.send_email, retry only when the 429 body code == 'rate_limited'",
+    "Optional: add a way to resend the order email for orders with email_status=failed"
+  ],
+  "critical_code_review_comments": [
+    "Retry/backoff logic is correct: attempt 0..3, then raise_for_status on the final response -> HTTPStatusError -> 503 with the rate-limit message. Worst-case added latency is about 14s plus 4 HTTP calls, which is fine within the ingress timeout.",
+    "send_order_reply passes every 503 detail through (rate limit and 'tillfälligt otillgänglig') and maps other errors to the generic text. The HTML reply form escapes the error message."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter7_email_ratelimit.py", "/app/backend/tests/test_iter7_reply_integration.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "No new orders. The existing order B10031 (id bc22a5ef-b42a-4ec7-9a89-31924b742504, delivered@resend.dev) now has 3 TEST_ replies and status confirmed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The unit test mocks httpx.AsyncClient.post and asyncio.sleep, so it sends no real emails. The integration test sends 2 real emails to delivered@resend.dev via order B10031 (MAX_REPLIES=10, now 3 used). Set env ITER7_ORDER_ID to use another order. Avoid bursts of real emails. In Playwright, wait about 1.5s after the reply sheet opens (slide animation) before clicking reply-send-button."
+}

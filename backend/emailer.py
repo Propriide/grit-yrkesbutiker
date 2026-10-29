@@ -1,3 +1,4 @@
+import asyncio
 import ipaddress
 import logging
 import os
@@ -14,6 +15,7 @@ EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+RATE_LIMIT_RETRIES = 3  # waits ~2s, 4s, 8s (or provider Retry-After, max 15s)
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
 _CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
@@ -95,11 +97,27 @@ async def send_email(*, to: str, subject: str, html: str, reply_to: str | None =
         payload["contact_email"] = reply_to or EMAIL_REPLY_TO
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{EMAIL_BASE_URL}/api/v1/email/send",
-                headers={"X-Email-Key": EMAIL_KEY},
-                json=payload,
-            )
+            # Retry briefly when the provider rate-limits a burst of sends (429 rate_limited).
+            for attempt in range(RATE_LIMIT_RETRIES + 1):
+                resp = await client.post(
+                    f"{EMAIL_BASE_URL}/api/v1/email/send",
+                    headers={"X-Email-Key": EMAIL_KEY},
+                    json=payload,
+                )
+                if resp.status_code != 429 or attempt == RATE_LIMIT_RETRIES:
+                    break
+                try:
+                    if resp.json().get("code") != "rate_limited":
+                        break  # e.g. daily limit: retrying won't help
+                except ValueError:
+                    pass
+                try:
+                    wait = float(resp.headers.get("retry-after") or 0)
+                except ValueError:
+                    wait = 0
+                wait = min(max(wait, 2 ** attempt * 2), 15)
+                logger.info("Email rate limited, retrying in %.0fs (attempt %d)", wait, attempt + 1)
+                await asyncio.sleep(wait)
         resp.raise_for_status()
         return resp.json().get("id")
     except httpx.HTTPStatusError as e:
@@ -107,7 +125,10 @@ async def send_email(*, to: str, subject: str, html: str, reply_to: str | None =
             code = e.response.json().get("code", "")
         except ValueError:
             code = ""
-        if code in ("insufficient_credits", "integration_disabled", "daily_limit_reached", "rate_limited"):
+        if code == "rate_limited":
+            logger.warning(f"Email rate limited after retries: {e.response.text}")
+            raise HTTPException(status_code=503, detail="Mejltjänsten har för många utskick just nu. Vänta en minut och försök igen.")
+        if code in ("insufficient_credits", "integration_disabled", "daily_limit_reached"):
             logger.warning(f"Email paused: {code} ({e.response.status_code}): {e.response.text}")
             raise HTTPException(status_code=503, detail="E-post är tillfälligt otillgänglig")
         logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
