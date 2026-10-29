@@ -10,7 +10,7 @@ export function formatDate(iso: string) {
   return d.toLocaleDateString("sv-SE") + " " + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function OrderCard({ order, showCompany }: { order: Order; showCompany?: boolean }) {
+export function OrderCard({ order, showCompany, onReply }: { order: Order; showCompany?: boolean; onReply?: () => void }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
@@ -79,6 +79,12 @@ export function OrderCard({ order, showCompany }: { order: Order; showCompany?: 
               <Text style={styles.comment}>{order.comment}</Text>
             </View>
           )}
+          {onReply && (
+            <Pressable testID={`order-reply-button-${order.order_number}`} onPress={onReply} style={styles.replyBtn}>
+              <Icon name="check-decagram" size={20} color={colors.onBrandPrimary} />
+              <Text style={styles.replyBtnText}>{confirmed ? "Skicka nytt svar" : "Bekräfta order"}</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </Pressable>
@@ -94,6 +100,8 @@ const useStyles = makeStyles((c) => ({
   statusOk: { backgroundColor: c.success },
   statusFail: { backgroundColor: c.error },
   statusConfirmed: { backgroundColor: c.brandSecondary },
+  replyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, minHeight: 48, borderRadius: radius.md, backgroundColor: c.brandPrimary, marginTop: spacing.md },
+  replyBtnText: { color: c.onBrandPrimary, fontFamily: fonts.display, fontSize: 17, textTransform: "uppercase", letterSpacing: 1 },
   replyBox: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.sm, padding: spacing.md },
   replyText: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 14 },
   replyDate: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },

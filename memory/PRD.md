@@ -40,3 +40,7 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Admin can create accounts (email/password/company/role) at /admin/user/new; admin toggle makes others admin
 - Categories removed from Hem start screen; Färg filter available in filter sheet
 - Forgot password (6-digit emailed code, 15 min, 5 attempts, 3 requests/15 min, neutral response), change password, edit own profile (/account/edit, /account/password)
+- Shop: Herr/Dam picker after "Till sortimentet" + Herr/Dam/Alla toggle (gender from Blåkläder GenderSection; unisex + ungendered items in both)
+- Colour filter shows matching colour image on cards and opens PDP in that colour
+- Admin confirms orders in app (Alla ordrar → Bekräfta order sheet) – POST /api/admin/orders/{id}/reply, same email as web link
+- Admin sets new password for any user (PUT /api/admin/users/{id}/password)

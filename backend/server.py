@@ -368,12 +368,13 @@ async def admin_reset_store(store_id: str, _: dict = Depends(admin_only)):
 
 # ---------------------------------------------------------------- products
 @api.get("/categories")
-async def categories(_: dict = Depends(current_user)):
+async def categories(gender: str = "", _: dict = Depends(current_user)):
     tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
+    match = _base_filter("", "", "", "", gender)
     counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
-        {"$match": {"active": {"$ne": False}}}, {"$unwind": "$groups"}, {"$group": {"_id": "$groups", "n": {"$sum": 1}}}])}
+        {"$match": match}, {"$unwind": "$groups"}, {"$group": {"_id": "$groups", "n": {"$sum": 1}}}])}
     sub_counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
-        {"$match": {"active": {"$ne": False}}}, {"$unwind": "$categories"}, {"$group": {"_id": "$categories", "n": {"$sum": 1}}}])}
+        {"$match": match}, {"$unwind": "$categories"}, {"$group": {"_id": "$categories", "n": {"$sum": 1}}}])}
     out = []
     for g in tree.get("groups", []):
         if not counts.get(g["slug"]):
@@ -383,8 +384,21 @@ async def categories(_: dict = Depends(current_user)):
     return out
 
 
-def _base_filter(q: str, group: str, category: str, filters: str) -> dict:
+GENDERS = {"herr": ["Herr", "Unisex"], "dam": ["Dam", "Unisex"]}
+
+
+def _gender_clause(gender: str) -> Optional[dict]:
+    """Herr/Dam view like blaklader.se: gendered garments of that gender + unisex + ungendered items (gloves, shoes...)."""
+    vals = GENDERS.get(gender)
+    if not vals:
+        return None
+    return {"$or": [{"gender": {"$in": vals}}, {"gender.0": {"$exists": False}}]}
+
+
+def _base_filter(q: str, group: str, category: str, filters: str, gender: str = "") -> dict:
     flt: dict = {"active": {"$ne": False}}
+    if (g := _gender_clause(gender)):
+        flt["$and"] = [g]
     if group:
         flt["groups"] = group
     if category:
@@ -426,10 +440,10 @@ def _size_key(s: str):
 
 
 @api.get("/filters")
-async def filter_options(q: str = "", group: str = "", category: str = "", _: dict = Depends(current_user)):
+async def filter_options(q: str = "", group: str = "", category: str = "", gender: str = "", _: dict = Depends(current_user)):
     """Filter panel definitions (Blåkläder order) with counts for the current group/category/search."""
     tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
-    base = _base_filter(q, group, category, "")
+    base = _base_filter(q, group, category, "", gender)
     out = []
     for f in tree.get("filters", []):
         field = "$sizes" if f["code"] == "Size" else f"$filters.{f['code']}"
@@ -446,11 +460,11 @@ async def filter_options(q: str = "", group: str = "", category: str = "", _: di
 
 @api.get("/products")
 async def products(
-    q: str = "", group: str = "", category: str = "", filters: str = "",
+    q: str = "", group: str = "", category: str = "", filters: str = "", gender: str = "",
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
     _: dict = Depends(current_user),
 ):
-    flt = _base_filter(q, group, category, filters)
+    flt = _base_filter(q, group, category, filters, gender)
     total = await db.products.count_documents(flt)
     proj = {"_id": 0, "description": 0, "price": 0, "filters": 0}
     items = await db.products.find(flt, proj).sort("sort_index", 1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
@@ -666,6 +680,59 @@ async def order_reply_page(token: str):
     return _reply_form(order, token)
 
 
+async def send_order_reply(order: dict, message: str) -> Optional[str]:
+    """Confirms the order and emails the message to the orderer. Returns an error text or None on success."""
+    if len(order.get("replies", [])) >= MAX_REPLIES:
+        return "Maximalt antal svar för denna order är uppnått."
+    subject = f"Orderbekräftelse {order['order_number']}"
+    html = reply_email_html(order, message)
+    try:
+        assert_safe_email(subject, html)
+    except ValueError:
+        return "Meddelandet innehåller otillåtna ord (t.ex. om kortuppgifter eller lösenord). Skriv om det."
+    settings = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    try:
+        await send_email(to=order["customer"]["email"], subject=subject, html=html, reply_to=settings.get("order_email"))
+    except HTTPException:
+        return "Mejlet kunde inte skickas just nu. Försök igen om en stund."
+    reply = {"message": message, "created_at": now_iso()}
+    await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply},
+                                                     "$set": {"status": "confirmed", "confirmed_at": reply["created_at"]}})
+    return None
+
+
+class ReplyIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class AdminPasswordIn(BaseModel):
+    new_password: str = Field(min_length=6, max_length=72)
+
+
+@api.post("/admin/orders/{order_id}/reply")
+async def admin_reply_order(order_id: str, body: ReplyIn, _: dict = Depends(admin_only)):
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Ordern hittades inte")
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(400, "Skriv ett meddelande innan du skickar.")
+    err = await send_order_reply(order, message)
+    if err:
+        raise HTTPException(400, err)
+    return await db.orders.find_one({"id": order_id}, {"_id": 0, "confirm_token": 0})
+
+
+@api.put("/admin/users/{user_id}/password")
+async def admin_set_password(user_id: str, body: AdminPasswordIn, _: dict = Depends(admin_only)):
+    r = await db.users.update_one({"id": user_id}, {"$set": {"password_hash": hash_pw(body.new_password)}})
+    if not r.matched_count:
+        raise HTTPException(404, "Kontot hittades inte")
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+    await db.login_attempts.delete_many({"email": u["email"]})
+    return {"ok": True}
+
+
 @api.post("/order-reply/{token}", response_class=HTMLResponse)
 async def order_reply_submit(token: str, request: Request):
     order = await _order_by_token(token)
@@ -675,22 +742,9 @@ async def order_reply_submit(token: str, request: Request):
     message = (form.get("message", [""])[0]).strip()[:2000]
     if not message:
         return _reply_form(order, token, "Skriv ett meddelande innan du skickar.")
-    if len(order.get("replies", [])) >= MAX_REPLIES:
-        return _reply_form(order, token, "Maximalt antal svar för denna order är uppnått.", message)
-    subject = f"Orderbekräftelse {order['order_number']}"
-    html = reply_email_html(order, message)
-    try:
-        assert_safe_email(subject, html)
-    except ValueError:
-        return _reply_form(order, token, "Meddelandet innehåller otillåtna ord (t.ex. om kortuppgifter eller lösenord). Skriv om det.", message)
-    settings = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
-    try:
-        await send_email(to=order["customer"]["email"], subject=subject, html=html, reply_to=settings.get("order_email"))
-    except HTTPException:
-        return _reply_form(order, token, "Mejlet kunde inte skickas just nu. Försök igen om en stund.", message)
-    reply = {"message": message, "created_at": now_iso()}
-    await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply},
-                                                     "$set": {"status": "confirmed", "confirmed_at": reply["created_at"]}})
+    err = await send_order_reply(order, message)
+    if err:
+        return _reply_form(order, token, err, message)
     return reply_page(
         "Svar skickat",
         f'<span class="bar"></span><h1>Svar skickat</h1><div class="c ok">Ditt svar har skickats till '

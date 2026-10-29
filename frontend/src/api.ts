@@ -40,7 +40,7 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   return data as T;
 }
 
-export type Color = { code: string; name: string; image_url?: string };
+export type Color = { code: string; name: string; image_url?: string; base?: string[] };
 export type Product = {
   part_no: string;
   name: string;

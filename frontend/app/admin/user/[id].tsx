@@ -26,7 +26,27 @@ export default function AdminUserDetail() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
   const isMe = me?.id === id;
+
+  const setPassword = async () => {
+    if (newPw.length < 6) {
+      toast("Lösenordet måste ha minst 6 tecken", "error");
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await api(`/admin/users/${id}/password`, { method: "PUT", body: { new_password: newPw } });
+      haptic("success");
+      toast("Nytt lösenord sparat", "success");
+      setNewPw("");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (q.data) {
@@ -120,6 +140,13 @@ export default function AdminUserDetail() {
 
           <Button title="Spara ändringar" testID="user-save-button" onPress={save} loading={saving} style={{ marginTop: spacing.lg }} />
 
+          <View style={styles.pwBox}>
+            <Text style={styles.switchTitle}>Ändra lösenord</Text>
+            <Text style={styles.switchSub}>Sätt ett nytt lösenord åt användaren och meddela det.</Text>
+            <Field label="Nytt lösenord" testID="admin-new-password-input" value={newPw} onChangeText={setNewPw} secureTextEntry placeholder="Minst 6 tecken" />
+            <Button title="Spara nytt lösenord" variant="secondary" icon="lock-reset" testID="admin-set-password-button" onPress={setPassword} loading={pwSaving} />
+          </View>
+
           {!isMe &&
             (confirmDelete ? (
               <View style={styles.confirm} testID="user-delete-confirm">
@@ -149,6 +176,7 @@ const useStyles = makeStyles((c) => ({
   switchTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
   switchSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   deleteLink: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: spacing.lg },
+  pwBox: { marginTop: spacing.xl, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, gap: spacing.sm },
   deleteText: { color: c.error, fontFamily: fonts.bodyBold, fontSize: 14 },
   confirm: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.error, gap: spacing.md },
   confirmText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 14 },

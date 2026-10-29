@@ -27,7 +27,12 @@ export default function Shop() {
   const [category, setCategory] = useState("");
   const [filters, setFilters] = useState<FilterState>({});
   const [filterOpen, setFilterOpen] = useState(false);
-  const params = useLocalSearchParams<{ group?: string; t?: string }>();
+  const [gender, setGender] = useState<"unset" | "" | "herr" | "dam">("unset");
+  const params = useLocalSearchParams<{ group?: string; t?: string; pick?: string }>();
+
+  useEffect(() => {
+    if (params.pick) setGender("unset");
+  }, [params.pick, params.t]);
 
   useEffect(() => {
     if (params.group !== undefined) {
@@ -41,12 +46,15 @@ export default function Shop() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const baseQuery = `q=${encodeURIComponent(q)}&group=${encodeURIComponent(group)}&category=${encodeURIComponent(category)}`;
+  const g = gender === "unset" ? "" : gender;
+  const baseQuery = `q=${encodeURIComponent(q)}&group=${encodeURIComponent(group)}&category=${encodeURIComponent(category)}&gender=${g}`;
   const filtersJson = JSON.stringify(filters);
   const nFilters = filterCount(filters);
-  const cats = useQuery({ queryKey: ["categories"], queryFn: () => api<CategoryGroup[]>("/categories") });
+  const selColors = filters.Color ?? [];
+  const cats = useQuery({ queryKey: ["categories", g], queryFn: () => api<CategoryGroup[]>(`/categories?gender=${g}`) });
   const list = useInfiniteQuery({
     queryKey: ["products", baseQuery, filtersJson],
+    enabled: gender !== "unset",
     initialPageParam: 1,
     queryFn: ({ pageParam }) => api<Page>(`/products?page=${pageParam}&page_size=20&${baseQuery}&filters=${encodeURIComponent(filtersJson)}`),
     getNextPageParam: (last) => (last.has_more ? last.page + 1 : undefined),
@@ -63,6 +71,43 @@ export default function Shop() {
     setGroup(slug);
     setCategory("");
   };
+  const pickGender = (v: "" | "herr" | "dam") => {
+    haptic("selection");
+    setGender(v);
+    setGroup("");
+    setCategory("");
+  };
+
+  if (gender === "unset") {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top + spacing.md, paddingBottom: bottomChrome + spacing.lg }]} testID="gender-picker">
+        <View style={[styles.titleRow, { paddingHorizontal: spacing.lg }]}>
+          <View style={styles.mark} />
+          <Text style={styles.title}>Sortiment</Text>
+        </View>
+        <Text style={styles.pickHelp}>Välj vilket sortiment du vill se</Text>
+        <View style={styles.pickWrap}>
+          {(
+            [
+              ["herr", "Herr", "human-male"],
+              ["dam", "Dam", "human-female"],
+            ] as const
+          ).map(([val, label, icon], i) => (
+            <Animated.View key={val} entering={FadeInDown.delay(i * 80).duration(300)} style={{ flex: 1 }}>
+              <Pressable testID={`gender-pick-${val}`} onPress={() => pickGender(val)} style={({ pressed }) => [styles.pickTile, pressed && { transform: [{ scale: 0.98 }], borderColor: colors.brandPrimary }]}>
+                <Icon name={icon} size={56} color={colors.brandPrimary} />
+                <Text style={styles.pickLabel}>{label}</Text>
+                <Icon name="arrow-right" size={26} color={colors.onSurface} />
+              </Pressable>
+            </Animated.View>
+          ))}
+        </View>
+        <Pressable testID="gender-pick-all" onPress={() => pickGender("")} style={styles.pickAll}>
+          <Text style={styles.pickAllText}>Visa hela sortimentet</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -73,6 +118,27 @@ export default function Shop() {
           <Text style={styles.count} testID="product-count">
             {total ? `${total} artiklar` : ""}
           </Text>
+        </View>
+        <View style={styles.segment} testID="gender-toggle">
+          {(
+            [
+              ["herr", "Herr"],
+              ["dam", "Dam"],
+              ["", "Alla"],
+            ] as const
+          ).map(([val, label]) => {
+            const active = gender === val;
+            return (
+              <Pressable
+                key={label}
+                testID={`gender-toggle-${label.toLowerCase()}`}
+                onPress={() => pickGender(active && val !== "" ? "" : val)}
+                style={[styles.segBtn, active && styles.segBtnActive]}
+              >
+                <Text style={[styles.segText, active && styles.segTextActive]}>{label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
         <View style={styles.searchRow}>
           <View style={[styles.search, { flex: 1 }]}>
@@ -181,30 +247,34 @@ export default function Shop() {
             )
           }
           ListFooterComponent={list.isFetchingNextPage ? <ActivityIndicator color={colors.brandPrimary} style={{ margin: spacing.lg }} /> : null}
-          renderItem={({ item, index }) => (
+          renderItem={({ item, index }) => {
+            const match = selColors.length ? item.colors?.find((c) => c.base?.some((b) => selColors.includes(b))) : undefined;
+            const img = match?.image_url || item.image_url;
+            return (
             <Animated.View entering={FadeInDown.delay((index % 10) * 40).duration(300)}>
               <Pressable
                 testID={`product-card-${item.part_no}`}
-                onPress={() => router.push(`/product/${item.part_no}`)}
+                onPress={() => router.push(match ? `/product/${item.part_no}?color=${match.code}` : `/product/${item.part_no}`)}
                 style={({ pressed }) => [styles.card, { width: cardW }, pressed && { transform: [{ scale: 0.97 }] }]}
               >
                 <View style={styles.imgWrap}>
-                  <Image source={{ uri: item.image_url ? `${item.image_url}?w=400` : undefined }} style={styles.img} contentFit="contain" transition={200} />
+                  <Image source={{ uri: img ? `${img}?w=400` : undefined }} style={styles.img} contentFit="contain" transition={200} />
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.partNo}>{item.part_no}</Text>
                   <Text style={styles.name} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  {item.colors?.length > 1 && (
+                  {(match || item.colors?.length > 1) && (
                     <View style={styles.cardFoot}>
-                      <Text style={styles.colorsCount}>{item.colors.length} färger</Text>
+                      <Text style={styles.colorsCount}>{match ? match.name : `${item.colors.length} färger`}</Text>
                     </View>
                   )}
                 </View>
               </Pressable>
             </Animated.View>
-          )}
+            );
+          }}
         />
       )}
       <FilterSheet visible={filterOpen} onClose={() => setFilterOpen(false)} value={filters} onApply={setFilters} query={baseQuery} />
@@ -214,6 +284,17 @@ export default function Shop() {
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
+  pickHelp: { color: c.onSurfaceSecondary, fontFamily: fonts.body, fontSize: 15, paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
+  pickWrap: { flex: 1, gap: spacing.lg, paddingHorizontal: spacing.lg },
+  pickTile: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.lg, backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, borderLeftWidth: 6, borderLeftColor: c.brandPrimary, paddingHorizontal: spacing.xl },
+  pickLabel: { flex: 1, color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 44, textTransform: "uppercase" },
+  pickAll: { minHeight: 52, alignItems: "center", justifyContent: "center", marginTop: spacing.md },
+  pickAllText: { color: c.brandPrimary, fontFamily: fonts.bodyBold, fontSize: 15 },
+  segment: { flexDirection: "row", backgroundColor: c.surfaceTertiary, borderRadius: radius.md, padding: 4, marginBottom: spacing.md, gap: 4 },
+  segBtn: { flex: 1, height: 44, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
+  segBtnActive: { backgroundColor: c.brandPrimary },
+  segText: { color: c.onSurfaceSecondary, fontFamily: fonts.display, fontSize: 17, textTransform: "uppercase", letterSpacing: 1 },
+  segTextActive: { color: c.onBrandPrimary },
   searchRow: { flexDirection: "row", gap: spacing.sm },
   filterBtn: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: c.surfaceTertiary, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   filterBtnActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },

@@ -13,7 +13,7 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
 
 export default function ProductDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, color: colorParam } = useLocalSearchParams<{ id: string; color?: string }>();
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -28,10 +28,10 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (p) {
-      setColor(p.colors?.[0]?.code ?? null);
+      setColor(p.colors?.find((c) => c.code === colorParam)?.code ?? p.colors?.[0]?.code ?? null);
       if (p.sizes?.length === 1) setSize(p.sizes[0]);
     }
-  }, [p]);
+  }, [p]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selColor = p?.colors?.find((c) => c.code === color);
   const image = selColor?.image_url || p?.image_url;

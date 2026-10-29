@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 6: All 4 features passed. Backend: 14/14 new tests passed, and the full regression suite passed 103/103. Tested: gender filter (herr 971 / dam 565 / all 1236), gender combined with group, filters and search, gender-aware counts in categories and filters, colors[].base, admin in-app order reply (403/404/422/400 'otillåtna ord'/200 -> confirmed) and admin set password (403/422/404/200, login with new password works, old password gives 401). Frontend at 375x667: gender picker shows from Hem 'Till sortimentet' and shows again when tapped a second time. Herr/Dam/Alla toggle updates product-count to 971/565/1236, and tapping the active Herr or Dam switches to Alla. Färg=Svart and Färg=Varselgul show the colour image and colour name on cards, and the detail page opens with ?color=<code> preselected (ART.NR 11451648-9933 / -8933). Admin reply sheet works: empty-message error, cvv error, then send -> BEKRÄFTAD badge + reply text + 'Skicka nytt svar'. Admin set password: short-password toast, then success toast, input cleared, and the throwaway user can log in with the new password. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/admin/users/{id}/password", "issue": "Existing JWT sessions of the user are not invalidated after an admin resets the password."},
+      {"endpoint": "hash_pw (bcrypt)", "issue": "Synchronous bcrypt.hashpw runs inside async endpoints and blocks the event loop for ~250ms per call. Consider asyncio.to_thread."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Shop product card colour label", "issue": "When a colour filter is active, single-colour products (e.g. 14821512, 17011503 under Varselgul) show no colour name, because the label renders only when item.colors.length > 1. The spec asks for the colour name to be labelled on filtered cards.", "testID": "product-card-14821512", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Sortiment header", "issues": ["Gender toggle buttons (gender-toggle-herr/dam/alla) are 40px high, below the 44px touch-target minimum."]},
+      {"screen": "Sortiment gender toggle", "issues": ["Switching Herr/Dam resets the selected group and category chips (pickGender sets group/category to ''). Colour filters are kept. This may be intended, but users lose their category when switching gender."]},
+      {"screen": "Admin user detail", "issues": ["The success/error toast overlaps the 'Spara nytt lösenord' button for a moment (cosmetic)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter6_gender_reply_adminpw.py", "/app/test_reports/pytest/pytest_iter6.xml", "/app/test_reports/pytest/pytest_all_iter6.xml"],
+  "action_items": [
+    "Optional: show the matched colour name on filtered cards even when the product has a single colour (shop.tsx ~line 267).",
+    "Optional: raise gender toggle segBtn minHeight to 44.",
+    "Optional: invalidate sessions or bump the token version on admin password reset; wrap bcrypt in asyncio.to_thread."
+  ],
+  "critical_code_review_comments": [
+    "_base_filter: the gender clause goes into $and and search goes into $or, so they don't collide (verified with q+gender).",
+    "Products with an empty gender array (97: gloves, shoes etc.) appear in both Herr and Dam by design. 'Barn' products (16) are only in Alla.",
+    "admin/orders.tsx reply Modal uses KeyboardAvoidingView. On web the slide animation takes ~1s, so tests must wait before tapping."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter6_gender_reply_adminpw.py"],
+  "success_rate": {"backend": "100% (14/14 new, 103/103 regression)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Throwaway users were created via POST /api/admin/users and deleted afterwards (pytest fixture plus test_uipw_t1@example.com). Orders B10025 (pytest) and B10024 (UI) by delivered@resend.dev are now confirmed, with TEST_ replies.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Remaining 'new' orders by delivered@resend.dev: B10023, B10022 and older. The reply sheet needs ~1.5s wait after opening (slide animation). Colour filter options use testID filter-option-Color-<Name>; expand filter-section-Color first if the option is hidden."
+}

@@ -53,6 +53,7 @@ def _parse_list_item(item: dict, color_names: dict[int, str]) -> dict:
             "code": c.get("code"),
             "name": c.get("value"),
             "image_url": variant_images.get(c.get("id")) or inner.get("imageUrl"),
+            "base": sorted({color_names[i] for i in c.get("color") or [] if i in color_names}),
         })
     return {
         "part_no": inner["partNo"],
@@ -61,6 +62,7 @@ def _parse_list_item(item: dict, color_names: dict[int, str]) -> dict:
         "description": _strip_html(inner.get("description", "")),
         "image_url": inner.get("imageUrl"),
         "colors": colors,
+        "gender": [v["value"] for v in ((item.get("innerParametrics") or {}).get("GenderSection") or {}).get("values") or [] if v.get("value")],
         "filters": {
             code: [v["value"] for v in ((item.get("innerParametrics") or {}).get(code) or {}).get("values") or [] if v.get("value")]
             for code in FILTER_CODES if code != "Size"

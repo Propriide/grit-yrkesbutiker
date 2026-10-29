@@ -58,7 +58,7 @@ export default function HomeScreen() {
         </Animated.View>
       ) : null}
 
-      <Button title="Till sortimentet" icon="arrow-right" testID="home-shop-button" onPress={() => router.push("/(tabs)/shop")} style={{ marginTop: spacing.xl }} />
+      <Button title="Till sortimentet" icon="arrow-right" testID="home-shop-button" onPress={() => router.push({ pathname: "/(tabs)/shop", params: { pick: "1", t: String(Date.now()) } })} style={{ marginTop: spacing.xl }} />
     </ScrollView>
   );
 }
