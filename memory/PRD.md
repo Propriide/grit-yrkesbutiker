@@ -26,3 +26,6 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - P1: Customer-specific price lists / hide prices option
 - P1: Order confirmation email copy to the customer
 - P2: Scheduled automatic catalog refresh, favorites/reorder, CSV export of orders
+
+## Update (2026-10-29)
+- Added second seeded admin patrik.degerstam@yp.se (env SECOND_ADMIN_EMAIL/PASSWORD, insert-only seed, also runs in production on startup)

@@ -426,14 +426,23 @@ async def startup():
     await db.orders.create_index("order_number", unique=True)
     if not await db.counters.find_one({"id": "order_number"}):
         await db.counters.insert_one({"id": "order_number", "seq": await db.orders.count_documents({})})
-    admin_email = os.environ["ADMIN_EMAIL"].strip().lower()
-    if not await db.users.find_one({"email": admin_email}):
-        await db.users.insert_one({
-            "id": str(uuid.uuid4()), "email": admin_email, "password_hash": hash_pw(os.environ["ADMIN_PASSWORD"]),
-            "phone": "", "company": "Admin", "org_number": "", "city_id": None, "role": "admin",
-            "disabled": False, "created_at": now_iso(),
-        })
-        logger.info("Seeded admin account %s", admin_email)
+    seeds = [(os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"])]
+    if os.environ.get("SECOND_ADMIN_EMAIL") and os.environ.get("SECOND_ADMIN_PASSWORD"):
+        seeds.append((os.environ["SECOND_ADMIN_EMAIL"], os.environ["SECOND_ADMIN_PASSWORD"]))
+    for raw_email, pw in seeds:
+        admin_email = raw_email.strip().lower()
+        # Insert only when absent; never reset an existing password on restart.
+        r = await db.users.update_one(
+            {"email": admin_email},
+            {"$setOnInsert": {
+                "id": str(uuid.uuid4()), "email": admin_email, "password_hash": hash_pw(pw),
+                "phone": "", "company": "Admin", "org_number": "", "city_id": None, "role": "admin",
+                "disabled": False, "created_at": now_iso(),
+            }},
+            upsert=True,
+        )
+        if r.upserted_id is not None:
+            logger.info("Seeded admin account %s", admin_email)
     if await db.cities.count_documents({}) == 0:
         for n in ["Stockholm", "Göteborg", "Malmö"]:
             await db.cities.insert_one({"id": str(uuid.uuid4()), "name": n})
