@@ -204,6 +204,102 @@ async def me(user: dict = Depends(current_user)):
     return await public_user(user)
 
 
+class ProfileUpdate(BaseModel):
+    phone: str = Field(min_length=5, max_length=40)
+    company: str = Field(min_length=1, max_length=200)
+    org_number: Optional[str] = Field(default="", max_length=40)
+    city_id: Optional[str] = None
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6, max_length=72)
+
+
+class ForgotIn(BaseModel):
+    email: str
+
+
+class ResetIn(BaseModel):
+    email: str
+    code: str = Field(min_length=6, max_length=6)
+    new_password: str = Field(min_length=6, max_length=72)
+
+
+RESET_MINUTES = 15
+MAX_RESET_REQUESTS = 3
+MAX_RESET_ATTEMPTS = 5
+
+
+@api.put("/auth/me")
+async def update_me(body: ProfileUpdate, user: dict = Depends(current_user)):
+    if body.city_id and not await db.cities.find_one({"id": body.city_id}):
+        raise HTTPException(400, "Ogiltig ort")
+    upd = {"phone": body.phone.strip(), "company": body.company.strip(),
+           "org_number": (body.org_number or "").strip(), "city_id": body.city_id or None}
+    await db.users.update_one({"id": user["id"]}, {"$set": upd})
+    return await public_user({**user, **upd})
+
+
+@api.post("/auth/change-password")
+async def change_password(body: ChangePasswordIn, user: dict = Depends(current_user)):
+    if not verify_pw(body.current_password, user["password_hash"]):
+        raise HTTPException(400, "Nuvarande lösenord är fel")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(body.new_password)}})
+    return {"ok": True}
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(body: ForgotIn):
+    """Always returns the same neutral response so emails cannot be enumerated."""
+    neutral = {"ok": True, "message": "Om adressen finns hos oss har en kod skickats."}
+    email = body.email.strip().lower()
+    user = await db.users.find_one({"email": email, "disabled": {"$ne": True}}, {"_id": 0})
+    if not user:
+        return neutral
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(minutes=RESET_MINUTES)).isoformat()
+    if await db.password_resets.count_documents({"email": email, "created_at": {"$gte": since}}) >= MAX_RESET_REQUESTS:
+        return neutral
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    await db.password_resets.insert_one({
+        "email": email, "code_hash": hash_pw(code), "attempts": 0, "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=RESET_MINUTES)).isoformat(), "expire_at": now + timedelta(minutes=RESET_MINUTES)})
+    html = (
+        '<table role="presentation" width="100%" style="font-family:Arial,sans-serif;color:#111"><tr><td style="padding:24px">'
+        '<h2 style="margin:0 0 12px">Återställ ditt lösenord</h2>'
+        '<p style="margin:0 0 12px">Ange koden nedan i appen för att välja ett nytt lösenord. Koden gäller i '
+        f'{RESET_MINUTES} minuter.</p>'
+        f'<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:0 0 16px">{code}</p>'
+        '<p style="font-size:13px;color:#555">Har du inte bett om detta kan du ignorera mejlet. Dela aldrig koden med någon.</p>'
+        f'<p style="font-size:12px;color:#888;margin-top:24px">Skickat av {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>')
+    async def _send():
+        try:
+            await send_email(to=email, subject="Din återställningskod", html=html)
+        except HTTPException:
+            logger.warning("Password reset email could not be sent")
+
+    asyncio.create_task(_send())  # background: same response time for known/unknown emails
+    return neutral
+
+
+@api.post("/auth/reset-password")
+async def reset_password(body: ResetIn):
+    email = body.email.strip().lower()
+    err = HTTPException(400, "Koden är fel eller har gått ut. Begär en ny kod.")
+    rec = await db.password_resets.find_one({"email": email, "expires_at": {"$gte": now_iso()}}, sort=[("created_at", -1)])
+    if not rec or rec.get("attempts", 0) >= MAX_RESET_ATTEMPTS:
+        raise err
+    if not verify_pw(body.code.strip(), rec["code_hash"]):
+        await db.password_resets.update_one({"_id": rec["_id"]}, {"$inc": {"attempts": 1}})
+        raise err
+    await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_pw(body.new_password)}})
+    await db.password_resets.delete_many({"email": email})
+    await db.login_attempts.delete_many({"email": email})
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- cities (public list)
 @api.get("/cities")
 async def list_cities():
@@ -654,6 +750,34 @@ async def delete_city(city_id: str, _: dict = Depends(admin_only)):
     return {"ok": True}
 
 
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=72)
+    phone: str = Field(default="", max_length=40)
+    company: str = Field(min_length=1, max_length=200)
+    org_number: Optional[str] = ""
+    city_id: Optional[str] = None
+    role: str = "customer"
+
+
+@api.post("/admin/users")
+async def admin_create_user(body: AdminUserCreate, _: dict = Depends(admin_only)):
+    email = body.email.strip().lower()
+    if body.role not in ("customer", "admin"):
+        raise HTTPException(400, "Ogiltig roll")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(409, "E-postadressen är redan registrerad")
+    if body.city_id and not await db.cities.find_one({"id": body.city_id}):
+        raise HTTPException(400, "Ogiltig ort")
+    user = {
+        "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
+        "phone": body.phone.strip(), "company": body.company.strip(), "org_number": (body.org_number or "").strip(),
+        "city_id": body.city_id or None, "role": body.role, "disabled": False, "created_at": now_iso(),
+    }
+    await db.users.insert_one(dict(user))
+    return await public_user(user)
+
+
 @api.get("/admin/users")
 async def admin_users(q: str = "", _: dict = Depends(admin_only)):
     flt: dict = {}
@@ -715,6 +839,8 @@ async def startup():
     await db.cities.create_index("id", unique=True)
     await db.login_attempts.create_index("at", expireAfterSeconds=LOCKOUT_MINUTES * 60)
     await db.login_attempts.create_index("email")
+    await db.password_resets.create_index("expire_at", expireAfterSeconds=0)
+    await db.password_resets.create_index("email")
     await db.orders.create_index("order_number", unique=True)
     if not await db.counters.find_one({"id": "order_number"}):
         await db.counters.insert_one({"id": "order_number", "seq": await db.orders.count_documents({})})

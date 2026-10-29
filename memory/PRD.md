@@ -37,3 +37,6 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Filter panel matching Blåkläder: Funktion, Kollektioner, Typ av plagg, Storlek, Färg, Certifiering, Varsel klassificering, Varsel samcertifiering, Material, Tvätt, Kollektion flamskydd, Miljömärkning (I lager not available from public site)
 - Start screen (Hem tab) with YP Yrkesbutiker logo + store info per city (admin editable, default fallback); Orders moved to Profil → Mina ordrar
 - Security: login lockout (5 fails/15 min), order-confirm link host allowlist (PUBLIC_HOST_SUFFIXES)
+- Admin can create accounts (email/password/company/role) at /admin/user/new; admin toggle makes others admin
+- Categories removed from Hem start screen; Färg filter available in filter sheet
+- Forgot password (6-digit emailed code, 15 min, 5 attempts, 3 requests/15 min, neutral response), change password, edit own profile (/account/edit, /account/password)

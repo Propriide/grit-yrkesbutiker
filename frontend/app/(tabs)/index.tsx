@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, Text } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, CategoryGroup, StoreInfo } from "@/src/api";
+import { api, StoreInfo } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { Button, Icon, IconName } from "@/src/components/ui";
 import { usesNativeTabs } from "@/src/navigation";
@@ -20,7 +20,6 @@ export default function HomeScreen() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const { user } = useAuth();
   const home = useQuery({ queryKey: ["home"], queryFn: () => api<Home>("/home") });
-  const cats = useQuery({ queryKey: ["categories"], queryFn: () => api<CategoryGroup[]>("/categories") });
   const h = home.data;
 
   return (
@@ -60,27 +59,6 @@ export default function HomeScreen() {
       ) : null}
 
       <Button title="Till sortimentet" icon="arrow-right" testID="home-shop-button" onPress={() => router.push("/(tabs)/shop")} style={{ marginTop: spacing.xl }} />
-
-      {(cats.data?.length ?? 0) > 0 && (
-        <>
-          <Text style={styles.section}>Handla efter plagg</Text>
-          <View style={styles.grid}>
-            {cats.data!.map((g) => (
-              <Pressable
-                key={g.slug}
-                testID={`home-group-${g.slug}`}
-                onPress={() => router.push({ pathname: "/(tabs)/shop", params: { group: g.slug, t: String(Date.now()) } })}
-                style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.97 }], borderColor: colors.brandPrimary }]}
-              >
-                <Text style={styles.tileName} numberOfLines={1}>
-                  {g.name}
-                </Text>
-                <Text style={styles.tileCount}>{g.count} artiklar</Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
     </ScrollView>
   );
 }
@@ -107,9 +85,4 @@ const useStyles = makeStyles((c) => ({
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, paddingHorizontal: spacing.lg, marginTop: spacing.xl },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md, minHeight: 48, borderBottomWidth: 1, borderBottomColor: c.divider },
   infoText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 15, flex: 1, lineHeight: 21 },
-  section: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", marginTop: spacing.xxl, marginBottom: spacing.md },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  tile: { width: "47%", flexGrow: 1, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.lg, borderLeftWidth: 4, borderLeftColor: c.brandPrimary },
-  tileName: { color: c.onSurface, fontFamily: fonts.display, fontSize: 20, textTransform: "uppercase" },
-  tileCount: { color: c.muted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
 }));

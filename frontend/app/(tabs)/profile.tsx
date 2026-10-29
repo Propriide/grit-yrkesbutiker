@@ -42,7 +42,9 @@ export default function Profile() {
         </View>
 
         <View style={[styles.list, { marginTop: spacing.lg }]}>
-          <Row icon="package-variant-closed" title="Mina ordrar" sub="Beställningar och svar från butiken" testID="my-orders-row" onPress={() => router.push("/orders")} last />
+          <Row icon="package-variant-closed" title="Mina ordrar" sub="Beställningar och svar från butiken" testID="my-orders-row" onPress={() => router.push("/orders")} />
+          <Row icon="account-edit" title="Redigera uppgifter" sub="Företag, telefon, org.nr och ort" testID="edit-profile-row" onPress={() => router.push("/account/edit")} />
+          <Row icon="lock-reset" title="Byt lösenord" sub="Ändra ditt lösenord" testID="change-password-row" onPress={() => router.push("/account/password")} last />
         </View>
 
         {isAdmin && (

@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 5: tested admin create user, promoting users to admin, edit own profile, change password, forgot/reset password, Hem without categories, and the Färg filter. New backend suite: 15/15 passed. Full regression: 89/89 passed. Every UI flow worked at a 375x667 mobile viewport: admin create user (validation, city picker, admin switch, new user shows in list), promote to admin with user-admin-switch (DB role=admin), edit profile (prefilled, validation, saved values show on Profil), change password (wrong current password error, mismatch error, success, login with new password), and forgot password in two steps (neutral message, wrong code error, correct seeded code returns to login, login with reset password). Hem shows no category tiles. Färg section lists 13 colours; picking Svart changed the count from 1236 to 844. The Resend email for forgot-password to delivered@resend.dev got 202 Accepted. Deprecated packages detected: none. No SafeAreaView imported from react-native.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/change-password, POST /api/auth/reset-password", "issue": "Existing JWTs (30-day) stay valid after a password change or reset. Other sessions are not revoked."},
+      {"endpoint": "POST /api/auth/forgot-password", "issue": "The response is neutral, but known emails take longer (bcrypt hash plus a synchronous email send) than unknown ones. Timing can reveal which emails exist. Consider sending the email in a background task."},
+      {"endpoint": "PUT /api/auth/me", "issue": "city_id can be cleared to null, but register requires a city when cities exist. The rules are inconsistent (the frontend picker has no 'none' option, so this is API only)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "forgot-password.tsx reset success", "issue": "router.replace('/login') after a successful reset puts a duplicate login screen on the stack ([login, login]; two login-email-input elements in the DOM, the first hidden). Use router.back() or router.dismissTo('/login') instead. Reference: /app/frontend/app/forgot-password.tsx:50", "testID": "reset-submit-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Kunder (/admin/users)", "issues": ["The list is blank while loading (ListEmptyComponent is null when isLoading). There is no spinner or skeleton."]},
+      {"screen": "Forgot password", "issues": ["The email typed on the login screen is not prefilled.", "Step 2 has no button to change the email except header back."]},
+      {"screen": "Sortiment with colour filter", "issues": ["With Färg=Svart, product cards still show the default image (e.g. navy or hi-vis). Showing the matching colour variant would be clearer (suggestion)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter5_accounts_passwords.py", "/app/test_reports/pytest/pytest_iter5.xml", "/app/test_reports/pytest/pytest_all_iter5.xml"],
+  "action_items": [
+    "LOW: forgot-password.tsx:50 – replace router.replace('/login') with router.back() or dismissTo to avoid a duplicate login screen in the stack",
+    "LOW: add a loading indicator to admin/users.tsx while the list is loading",
+    "OPTIONAL: revoke other sessions after a password change or reset (e.g. a token_version claim)",
+    "OPTIONAL: prefill the forgot-password email from the login screen"
+  ],
+  "critical_code_review_comments": [
+    "Reset codes are stored as bcrypt hashes and expire via a TTL index. There are 5 attempts per code and at most 3 requests per 15 min. Codes are single use (records are deleted on success) and login lockouts are cleared after a reset. Good.",
+    "A new forgot-password request creates a fresh record with 5 more attempts, so up to 15 guesses per 15 min against a 1e6 code space. Acceptable.",
+    "Admin create validates role, city and duplicate email (409). PUT /auth/me ignores extra fields such as role, so there is no privilege escalation (verified)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter5_accounts_passwords.py"],
+  "success_rate": {"backend": "100% (15/15 new, 89/89 total)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Throwaway test_iter5_* users were created through admin create and all deleted afterwards. The related password_resets and login_attempts records were removed. Main accounts are unchanged.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reset happy path: insert a password_resets doc with a bcrypt code_hash and a created_at slightly in the future so it is the newest record (reset uses sort created_at desc). After a password reset the stack has two login screens, so use :visible selectors. Color filter param format: filters=JSON {\"Color\":[\"Svart\"]}.",
+  "rca_of_issue": ""
+}

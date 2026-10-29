@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, User } from "@/src/api";
@@ -22,7 +22,15 @@ export default function AdminUsers() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Kunder" subtitle={users.data ? `${users.data.length} konton` : undefined} />
+      <ScreenHeader
+        title="Kunder"
+        subtitle={users.data ? `${users.data.length} konton` : undefined}
+        right={
+          <Pressable testID="create-user-button" onPress={() => router.push("/admin/user/new")} style={styles.addBtn}>
+            <Icon name="account-plus" size={22} color={colors.onBrandPrimary} />
+          </Pressable>
+        }
+      />
       <View style={styles.searchWrap}>
         <View style={styles.search}>
           <Icon name="magnify" size={22} color={colors.muted} />
@@ -43,7 +51,7 @@ export default function AdminUsers() {
         keyExtractor={(u) => u.id}
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: insets.bottom + spacing.xl, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={users.isRefetching} onRefresh={() => users.refetch()} tintColor={colors.brandPrimary} />}
-        ListEmptyComponent={users.isLoading ? null : <EmptyState icon="account-off" title="Inga konton" />}
+        ListEmptyComponent={users.isLoading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xxl }} /> : <EmptyState icon="account-off" title="Inga konton" />}
         renderItem={({ item }) => (
           <Pressable testID={`user-row-${item.email}`} onPress={() => router.push(`/admin/user/${item.id}`)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceTertiary }]}>
             <View style={{ flex: 1 }}>
@@ -72,6 +80,7 @@ export default function AdminUsers() {
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
+  addBtn: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
   searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   search: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.surfaceTertiary, borderRadius: radius.md, paddingHorizontal: spacing.md, height: 48, borderWidth: 1, borderColor: c.border },
   searchInput: { flex: 1, color: c.onSurface, fontFamily: fonts.body, fontSize: 15, height: 48, ...({ outlineWidth: 0 } as object) },
