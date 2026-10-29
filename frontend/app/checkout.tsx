@@ -67,7 +67,7 @@ export default function Checkout() {
         </View>
         <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
           <Button title="Visa ordrar" testID="order-success-orders-button" onPress={() => router.replace("/orders")} />
-          <Button title="Fortsätt handla" variant="secondary" testID="order-success-shop-button" onPress={() => router.replace("/(tabs)/shop")} />
+          <Button title="Fortsätt handla" variant="secondary" testID="order-success-shop-button" onPress={() => router.dismissTo("/(tabs)/shop")} />
         </View>
       </View>
     );
@@ -77,7 +77,7 @@ export default function Checkout() {
     <View style={styles.root}>
       <ScreenHeader title="Kassa" subtitle={user?.company} />
       {cart.items.length === 0 ? (
-        <EmptyState icon="cart-outline" title="Varukorgen är tom" action={<Button title="Till sortimentet" testID="checkout-browse-button" onPress={() => router.replace("/(tabs)/shop")} />} />
+        <EmptyState icon="cart-outline" title="Varukorgen är tom" action={<Button title="Till sortimentet" testID="checkout-browse-button" onPress={() => router.dismissTo("/(tabs)/shop")} />} />
       ) : (
         <>
           <KeyboardAwareScrollView bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>

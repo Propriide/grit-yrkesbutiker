@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 11 covered company orders, per-person orders, the header home button and the Sortiment favourites button. Backend: the new suite test_iter11_company_user_orders.py passes 14/14 and the iter10 regression passes 11/11. Test orders were inserted directly into Mongo, so no emails were sent. Frontend was tested at 375x667. (1) Company orders: Profil > Hantera kunder > Företag > company-row-patriks-bygg opens /admin/company?name=Patriks bygg. The segment shows 'PERSONER (2)' and 'ORDRAR (1)'. company-orders-list shows order-card-B10035 with company and email, and it expands with items and comment. (2) Per-person orders: the user page for test@hotmail.com shows 'Ordrar (1)', and user-orders-list contains order-card-B10035. (3) Home button: header-home-button (44x44) returns to the starting tab in every tested flow. Profil > users > company > user > home lands on /profile with no back button. Sortiment > heart > favorites > product > back > home lands on /shop. Hem > bell > notifications > order detail > home lands on /. Varukorg > bell > home lands on /cart. Profil > Mina ordrar > home lands on /profile. A cold deep link to /admin/user/<id> > home lands on /profile. There is no home button on /register or /forgot-password. (4) favorites-button sits next to notification-bell on both the gender picker and the product list, and favorites-count shows 1. Regression: the category dropdown, favourites rows and reorder (order detail > order-reorder-button > /cart with toast) all work. ONE NAVIGATION GAP: router.push('/(tabs)/...') from stack screens pushes a second (tabs) instance. After that, the home button leaves the old stack behind. No page errors. No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/company-orders", "issue": "Orders are matched by current user_id membership OR the order's customer.company snapshot. If a user moves company, their old orders appear under both the new and the old company. This may be intended; please confirm."},
+      {"endpoint": "GET /api/admin/users/{id}/orders", "issue": "An unknown user id returns 200 [] instead of 404. Harmless."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Home button after jumping to a tab from a stack screen", "issue": "Stack screens call router.push('/(tabs)/cart') or push('/(tabs)/shop'). On expo-router 58 this pushes a NEW (tabs) instance onto the root stack: tab-profile appears twice in the DOM. Reproduced: Sortiment > heart > favorites > product > product-cart-button lands on /cart (2 tab bars). Then bell > notifications > home lands on /cart, but favorites-list and product-back-button are still mounted underneath. Browser/hardware back then goes to /product/11451648 instead of leaving the tab. The same happens after order detail > order-reorder-button. This partly defeats requirement 3 (go straight back to the tab without pressing back repeatedly). Affected: app/product/[id].tsx:87, app/order/[id].tsx:109, app/favorites.tsx:35, app/orders.tsx:34; probably also checkout.tsx:70,80 (router.replace('/(tabs)/shop')).", "affected_testIDs": ["product-cart-button", "order-reorder-button", "favorites-shop-button", "orders-browse-button", "order-success-shop-button", "checkout-browse-button", "header-home-button"]}
+    ],
+    "design_issues": [
+      {"screen": "Product detail /product/[id]", "issues": ["It has no header-home-button (only back, heart and cart). For favorites > product it is only one level deep, so this is acceptable. Consider adding one for consistency."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter11_company_user_orders.py", "/app/test_reports/pytest/pytest_iter11.xml"],
+  "action_items": [
+    "Replace router.push('/(tabs)/cart' | '/(tabs)/shop') in stack screens (product/[id].tsx:87, order/[id].tsx:109, favorites.tsx:35, orders.tsx:34) with router.dismissTo('/(tabs)/cart') or the equivalent. This avoids stacking a second tabs navigator and keeps the home button and back behaviour clean. Also review checkout.tsx:70 and :80 (router.replace to '/(tabs)/shop').",
+    "Optional: confirm the intended semantics of company-orders when a user changes company (user_id OR customer.company snapshot)."
+  ],
+  "critical_code_review_comments": [
+    "navigation.ts: lastTab is module-level state, defaulting to '/(tabs)/profile'. After a cold deep link it returns to Profil, which is fine. It is not persisted, which is acceptable.",
+    "admin.py _company_rx: re.escape is used per word, so regex injection is safe ('.*' returns []). The match is anchored, so there are no partial matches.",
+    "company.tsx always fetches users and orders in parallel. That is fine, and the counts appear in the segment labels."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter11_company_user_orders.py"],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "95% (all requested flows pass; one navigation gap with tab push)"},
+  "seed_data_creation": "TEST_ users and orders (order_number TEST<tag>N) were inserted in fixtures and removed in teardown. Reorder testing added 2x Skaljacka 40661534-3389 L to the admin's local cart.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Order cards on company and user pages are order-card-<number>. Reorder is on /order/[id] (reached via order-timeline-link-<num>), not on the card. The company row testID uses the lowercase key: company-row-patriks-bygg. On web, after a push to /(tabs)/*, duplicate tab bars exist, so use ':visible' selectors."
+}

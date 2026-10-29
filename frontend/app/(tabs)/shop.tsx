@@ -10,6 +10,7 @@ import { api, CategoryGroup, Product } from "@/src/api";
 import { Button, EmptyState, haptic, Icon } from "@/src/components/ui";
 import { CategoryPicker } from "@/src/components/category-picker";
 import { filterCount, FilterSheet, FilterState } from "@/src/components/filter-sheet";
+import { FavoritesButton } from "@/src/components/favorites-button";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { pickColor } from "@/src/color-match";
 import { usesNativeTabs } from "@/src/navigation";
@@ -81,6 +82,7 @@ export default function Shop() {
         <View style={[styles.titleRow, { paddingHorizontal: spacing.lg }]}>
           <View style={styles.mark} />
           <Text style={styles.title}>Sortiment</Text>
+          <FavoritesButton />
           <NotificationBell />
         </View>
         <Text style={styles.pickHelp}>Välj vilket sortiment du vill se</Text>
@@ -116,6 +118,7 @@ export default function Shop() {
           <Text style={styles.count} testID="product-count">
             {total ? `${total} artiklar` : ""}
           </Text>
+          <FavoritesButton />
           <NotificationBell />
         </View>
         <View style={styles.segment} testID="gender-toggle">

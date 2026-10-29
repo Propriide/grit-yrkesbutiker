@@ -1,16 +1,19 @@
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { useAuth } from "@/src/auth";
 import { useCart } from "@/src/cart";
 import { Icon } from "@/src/components/ui";
-import { usesNativeTabs } from "@/src/navigation";
+import { rememberTab, usesNativeTabs } from "@/src/navigation";
 import { colors, fonts } from "@/src/theme";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
   const { count } = useCart();
+  const pathname = usePathname();
+  useEffect(() => rememberTab(pathname), [pathname]);
   if (!loading && !user) return <Redirect href="/login" />;
 
   if (usesNativeTabs) {

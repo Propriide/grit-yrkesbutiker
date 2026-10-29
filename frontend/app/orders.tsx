@@ -31,7 +31,7 @@ export default function Orders() {
               icon="package-variant"
               title="Inga ordrar än"
               text="Dina skickade beställningar visas här."
-              action={<Button title="Till sortimentet" testID="orders-browse-button" onPress={() => router.push("/(tabs)/shop")} />}
+              action={<Button title="Till sortimentet" testID="orders-browse-button" onPress={() => router.dismissTo("/(tabs)/shop")} />}
             />
           )
         }

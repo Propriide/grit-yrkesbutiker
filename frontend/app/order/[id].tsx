@@ -106,7 +106,7 @@ export default function OrderDetail() {
                 }
                 haptic("success");
                 toast(`${o.items.reduce((s, i) => s + i.quantity, 0)} st lagda i varukorgen`, "success");
-                router.push("/(tabs)/cart");
+                router.dismissTo("/(tabs)/cart");
               }}
             />
           )}

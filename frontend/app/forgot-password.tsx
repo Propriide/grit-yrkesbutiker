@@ -58,7 +58,7 @@ export default function ForgotPassword() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Glömt lösenord" subtitle={step === "email" ? "Steg 1 av 2" : "Steg 2 av 2"} />
+      <ScreenHeader title="Glömt lösenord" home={false} subtitle={step === "email" ? "Steg 1 av 2" : "Steg 2 av 2"} />
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing.xl }}>
         {!!error && <ErrorBanner message={error} testID="forgot-error" />}
         {step === "email" ? (

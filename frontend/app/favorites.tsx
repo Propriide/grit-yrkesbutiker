@@ -32,7 +32,7 @@ export default function Favorites() {
               icon="heart-outline"
               title="Inga favoriter än"
               text="Tryck på hjärtat på ett plagg för att spara det med vald färg."
-              action={<Button title="Till sortimentet" testID="favorites-shop-button" onPress={() => router.push("/(tabs)/shop")} />}
+              action={<Button title="Till sortimentet" testID="favorites-shop-button" onPress={() => router.dismissTo("/(tabs)/shop")} />}
             />
           )
         }

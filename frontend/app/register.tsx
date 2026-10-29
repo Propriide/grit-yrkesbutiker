@@ -55,7 +55,7 @@ export default function Register() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Registrera konto" subtitle="Konto för företagsbeställningar" />
+      <ScreenHeader title="Registrera konto" home={false} subtitle="Konto för företagsbeställningar" />
       <KeyboardAwareScrollView bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {!!error && <ErrorBanner message={error} testID="register-error" />}
         <Text style={styles.section}>Kontouppgifter</Text>

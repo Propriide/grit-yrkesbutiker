@@ -84,7 +84,7 @@ export default function ProductDetail() {
               <Icon name={fav ? "heart" : "heart-outline"} size={22} color={fav ? colors.onBrandPrimary : colors.onSurface} />
             </Pressable>
           )}
-          <Pressable testID="product-cart-button" onPress={() => router.push("/(tabs)/cart")} style={styles.roundBtn}>
+          <Pressable testID="product-cart-button" onPress={() => router.dismissTo("/(tabs)/cart")} style={styles.roundBtn}>
             <Icon name="cart" size={22} color={colors.onSurface} />
             {cart.count > 0 && (
               <View style={styles.badge}>

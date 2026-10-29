@@ -57,3 +57,8 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - "Beställ igen" on own order detail adds all items to existing cart.
 - Companies: grouped case/space-insensitively (/api/admin/companies, /api/admin/company-users); admin Kunder has Konton/Företag view + company page; CompanyInput (type or dropdown) on admin create/edit; company names snap to existing spelling on save/register.
 - Shop: vertical category dropdown (accordion of sub-categories, closes on choice).
+
+## Iteration 11 (fork 2)
+- Admin company page: Personer/Ordrar tabs (/api/admin/company-orders); user page lists that person's orders (/api/admin/users/{id}/orders).
+- Header home button (ScreenHeader) returns to last visited tab via router.dismissTo (src/navigation.ts). Tab jumps from stack screens use dismissTo (no duplicate tab stacks).
+- Sortiment: heart button next to bell opens favourites, with count badge.

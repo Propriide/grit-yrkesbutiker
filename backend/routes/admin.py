@@ -182,14 +182,30 @@ async def admin_companies(_: dict = Depends(admin_only)):
     return sorted(out, key=lambda c: c["name"].lower())
 
 
-@router.get("/admin/company-users")
-async def admin_company_users(name: str, _: dict = Depends(admin_only)):
+def _company_rx(name: str) -> dict:
     words = name.split()
     if not words:
         raise HTTPException(400, "Ange företagsnamn")
-    rx = {"$regex": r"^\s*" + r"\s+".join(re.escape(w) for w in words) + r"\s*$", "$options": "i"}
-    users = await db.users.find({"company": rx}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(1000)
+    return {"$regex": r"^\s*" + r"\s+".join(re.escape(w) for w in words) + r"\s*$", "$options": "i"}
+
+
+@router.get("/admin/company-users")
+async def admin_company_users(name: str, _: dict = Depends(admin_only)):
+    users = await db.users.find({"company": _company_rx(name)}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(1000)
     return [await public_user(u) for u in users]
+
+
+@router.get("/admin/company-orders")
+async def admin_company_orders(name: str, _: dict = Depends(admin_only)):
+    rx = _company_rx(name)
+    ids = [u["id"] async for u in db.users.find({"company": rx}, {"_id": 0, "id": 1})]
+    flt = {"$or": [{"user_id": {"$in": ids}}, {"customer.company": rx}]}
+    return await db.orders.find(flt, {"_id": 0, "confirm_token": 0}).sort("created_at", -1).to_list(500)
+
+
+@router.get("/admin/users/{user_id}/orders")
+async def admin_user_orders(user_id: str, _: dict = Depends(admin_only)):
+    return await db.orders.find({"user_id": user_id}, {"_id": 0, "confirm_token": 0}).sort("created_at", -1).to_list(500)
 
 
 @router.delete("/admin/users/{user_id}")

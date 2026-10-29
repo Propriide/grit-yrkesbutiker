@@ -5,10 +5,11 @@ import { ActivityIndicator, Pressable, Switch, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, City, User } from "@/src/api";
+import { api, City, Order, User } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CityPicker } from "@/src/components/city-picker";
 import { CompanyInput } from "@/src/components/company-input";
+import { OrderCard } from "@/src/components/order-card";
 import { Button, ErrorBanner, Field, haptic, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -23,6 +24,7 @@ export default function AdminUserDetail() {
   const { user: me } = useAuth();
   const q = useQuery({ queryKey: ["admin-user", id], queryFn: () => api<User>(`/admin/users/${id}`) });
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities") });
+  const orders = useQuery({ queryKey: ["admin-user-orders", id], queryFn: () => api<Order[]>(`/admin/users/${id}/orders`) });
   const [f, setF] = useState({ company: "", phone: "", org_number: "", city_id: null as string | null, disabled: false, role: "customer" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -148,6 +150,17 @@ export default function AdminUserDetail() {
 
           <Button title="Spara ändringar" testID="user-save-button" onPress={save} loading={saving} style={{ marginTop: spacing.lg }} />
 
+          <Text style={styles.section}>Ordrar ({orders.data?.length ?? 0})</Text>
+          <View style={{ gap: spacing.sm }} testID="user-orders-list">
+            {orders.isLoading ? (
+              <ActivityIndicator color={colors.brandPrimary} />
+            ) : orders.data?.length ? (
+              orders.data.map((o) => <OrderCard key={o.id} order={o} />)
+            ) : (
+              <Text style={styles.switchSub}>Inga ordrar än.</Text>
+            )}
+          </View>
+
           <View style={styles.pwBox}>
             <Text style={styles.switchTitle}>Ändra lösenord</Text>
             <Text style={styles.switchSub}>Sätt ett nytt lösenord åt användaren och meddela det.</Text>
@@ -181,6 +194,7 @@ const useStyles = makeStyles((c) => ({
   statNum: { color: c.brandSecondary, fontFamily: fonts.displayHeavy, fontSize: 36 },
   statLabel: { color: c.muted, fontFamily: fonts.body, fontSize: 14 },
   companyLink: { minHeight: 44, justifyContent: "center", marginTop: -spacing.md, marginBottom: spacing.sm },
+  section: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", marginTop: spacing.xl, marginBottom: spacing.sm },
   companyLinkText: { color: c.brandPrimary, fontFamily: fonts.bodyBold, fontSize: 14 },
   switchRow: { flexDirection: "row", alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.lg, marginBottom: spacing.sm },
   switchTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },

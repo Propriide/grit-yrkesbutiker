@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { getLastTab } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export const Icon = MaterialDesignIcons;
@@ -105,7 +106,7 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, e
   );
 });
 
-export function ScreenHeader({ title, subtitle, back = true, right }: { title: string; subtitle?: string; back?: boolean; right?: ReactNode }) {
+export function ScreenHeader({ title, subtitle, back = true, right, home = true }: { title: string; subtitle?: string; back?: boolean; right?: ReactNode; home?: boolean }) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -123,6 +124,16 @@ export function ScreenHeader({ title, subtitle, back = true, right }: { title: s
         {subtitle ? <Text style={styles.headerSub}>{subtitle}</Text> : null}
       </View>
       {right}
+      {back && home && (
+        <Pressable
+          testID="header-home-button"
+          hitSlop={8}
+          onPress={() => router.dismissTo(getLastTab() as any)}
+          style={styles.homeBtn}
+        >
+          <Icon name="home-variant" size={22} color={colors.brandPrimary} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -222,6 +233,7 @@ const useStyles = makeStyles((c) => ({
     borderBottomColor: c.divider,
   },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginLeft: -spacing.sm },
+  homeBtn: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border },
   headerTitle: { color: c.onSurface, fontFamily: fonts.display, fontSize: 26, textTransform: "uppercase", letterSpacing: 0.5 },
   headerSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   empty: { alignItems: "center", justifyContent: "center", padding: spacing.xxl, gap: spacing.md },
