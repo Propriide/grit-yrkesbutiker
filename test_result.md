@@ -118,6 +118,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "Backend verified: Admin login works, settings show delivered@resend.dev and 1236 products, admin orders page shows 12 pending orders, admin@blaklader.local does not exist (correct), access control works (non-auth redirected to login). Backend API functioning correctly."
+      - working: true
+        agent: "testing"
+        comment: "REGRESSION TEST COMPLETE (after requirements.txt litellm wheel URL change). All 30 tests PASSED: 1) /health OK, /api/cities (4 cities), /api/products (1236 total), product detail with 28 sizes. 2) Auth: admin login works, GET /api/auth/me returns admin role, customer registration and login successful. 3) Password change: 12345->TempPass987 works, new password login works, old password fails correctly, password restored to 12345 (via database workaround due to validation requiring min 6 chars). 4) Forgot password returns neutral OK. 5) Customer order created (B10020, store pickup), GET /api/orders lists it. 6) Admin settings: order_email=patrik.degerstam@yp.se, no admin@blaklader.local, only admin is patrik.degerstam@yp.se. 7) /api/webpush/public-key returns key, /api/admin/* returns 403 with customer token and 401 without token. 8) Python imports: emergentintegrations, pywebpush, py_vapid, litellm all import successfully. VALIDATION ISSUE FOUND: Backend password validation requires min 6 characters, but admin password '12345' is only 5 characters - this prevents admin from using self-service password change to restore original password."
 
 frontend:
   - task: "PWA static build (frontend/dist) served by frontend/serve-dist.js on :3001 with /api proxy"
@@ -264,12 +267,12 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Production build end-to-end testing complete"
+    - "Regression testing complete after dependency change"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -285,3 +288,7 @@ agent_communication:
     message: "FINAL COMPREHENSIVE TESTING at production URL (https://yp-grit-pwa--5cwnslce.preview.emergentagent.com). CRITICAL SECURITY ISSUE FOUND: Customers can access admin routes (/admin/settings, /admin/orders) and view ALL orders from ALL customers plus admin settings. This is a MAJOR security vulnerability. ITEM A (Customer orders): ✅ PASS - Created 2 orders (B10016 Paketbox, B10017 Frakt), both show 'Inväntar bekräftelse'. ITEM B (Admin management): ⚠️ PARTIAL - Admin login works, settings/users pages correct, but order management buttons (confirm/decline/ready) not accessible in test (reply sheet buttons have different testIDs). ITEM C (Notifications): ❌ BLOCKED - Could not test due to logout/login flow issue. ITEM D (Notification prefs): ✅ PASS - Toggles work and persist. ITEM E (Access control): ❌ CRITICAL FAIL - Customers CAN access admin data. Email rate limiting is acceptable per review request."
   - agent: "testing"
     message: "PRODUCTION BUILD TESTING COMPLETE at http://localhost:3001 (mobile viewport 390x844). ✅ SCENARIO B (Admin Order Management): Admin login successful, processed orders B10017 (confirmed with message → BEKRÄFTAD → marked ready → KLAR) and B10016 (declined with reason → NEKAD). Reply sheet UI functional, all buttons work correctly. No email rate limiting errors shown. ✅ SCENARIO C (Customer Notifications): Customer login successful, notifications page shows all 3 notification types (confirmed, declined, ready) for processed orders. Tapping notification navigates to order detail with complete timeline showing all steps (Inväntar bekräftelse → Bekräftad with message → Klar). All functionality working as expected. Orders used: B10017 (confirmed & ready), B10016 (declined). Screenshots captured for all critical flows."
+  - agent: "testing"
+    message: "REGRESSION TEST COMPLETE after requirements.txt dependency change (litellm wheel URL #sha256 fragment removed). ✅ ALL 30 TESTS PASSED. Backend healthy, 1236 products, auth flows working, password change functional (with validation workaround), customer orders working, admin settings correct (order_email=patrik.degerstam@yp.se, no admin@blaklader.local), security controls working (403/401), Python imports successful (emergentintegrations, pywebpush, py_vapid, litellm). ⚠️ VALIDATION ISSUE IDENTIFIED: Backend requires min 6-char passwords but admin password is '12345' (5 chars) - prevents self-service password restoration via API. Password successfully restored to '12345' via database. No regression from dependency change detected."
+  - agent: "main"
+    message: "Iteration 2: backend/requirements.txt fixed (removed #sha256 fragment from litellm URL so it matches emergentintegrations' dependency; clean venv install + pip check OK). No backend code changes. Please regression-test backend after restart: auth (login/register/me), change-password for admin (then CHANGE IT BACK to 12345), forgot-password endpoint responds, products/catalog, orders create/list, admin settings, webpush public-key, admin 403 for customers. Do not drop data, do not restart backend."

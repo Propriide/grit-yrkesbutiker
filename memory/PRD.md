@@ -135,3 +135,6 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - `expo export -p web` → frontend/dist; frontend/serve-dist.js = static SPA server with /api proxy (local test on :3001).
 - DEPLOY_WEB checklist 1,2,3,4,6 tested OK (backend + browser on dist build). Remaining: 5 (install on real iPhone/Android) and real web push on device – need public URL.
 - Launch blocked: this is an Expo job; its deployment has no public web URL. Launch via "Add Web App" / new Web App job after user approval. Production secrets still to set: new JWT_SECRET, new VAPID pair, remove ADMIN_* live slot.
+- Iteration 20b: requirements.txt litellm URL '#sha256' fragment removed (resolver conflict); clean-venv install + pip check + server import OK; backend regression 30/30.
+- New production secrets generated into backend/prod_secrets.env (gitignored via *.env, chmod 600): JWT_SECRET, VAPID pair, ADMIN_EMAIL=patrik (so the first seed pair points to patrik → no test admin). User enters them in the secrets card (live slot).
+- Admin can change own password in Profil → Byt lösenord (min 6 chars).
