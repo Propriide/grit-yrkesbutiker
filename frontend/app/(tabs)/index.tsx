@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
@@ -26,6 +27,8 @@ export default function HomeScreen() {
   const home = useQuery({ queryKey: ["home"], queryFn: () => api<Home>("/home") });
   const orders = useQuery({ queryKey: ["orders"], queryFn: () => api<Order[]>("/orders") });
   const favs = useFavorites();
+  const [showFavs, setShowFavs] = useState(true);
+  const [showOrders, setShowOrders] = useState(true);
   const h = home.data;
 
   return (
@@ -72,7 +75,8 @@ export default function HomeScreen() {
 
       {favs.list.length > 0 && (
         <View testID="home-favorites">
-          <SectionTitle title="Mina favoriter" action="Visa alla" onAction={() => router.push("/favorites")} testID="home-favorites-all" />
+          <SectionTitle title="Mina favoriter" open={showFavs} onToggle={() => setShowFavs((v) => !v)} action="Visa alla" onAction={() => router.push("/favorites")} testID="home-favorites" />
+          {showFavs && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }} style={{ marginHorizontal: -spacing.lg }}>
             <View style={{ width: spacing.lg - spacing.md }} />
             {favs.list.slice(0, 12).map((f) => (
@@ -97,29 +101,36 @@ export default function HomeScreen() {
             ))}
             <View style={{ width: spacing.lg - spacing.md }} />
           </ScrollView>
+          )}
         </View>
       )}
 
       {!!orders.data?.length && (
         <View testID="home-recent-orders">
-          <SectionTitle title="Senaste ordrar" action="Alla ordrar" onAction={() => router.push("/orders")} testID="home-orders-all" />
-          <View style={{ gap: spacing.sm }}>
-            {orders.data.slice(0, 3).map((o) => (
-              <OrderCard key={o.id} order={o} />
-            ))}
-          </View>
+          <SectionTitle title="Senaste ordrar" open={showOrders} onToggle={() => setShowOrders((v) => !v)} action="Alla ordrar" onAction={() => router.push("/orders")} testID="home-orders" />
+          {showOrders && (
+            <View style={{ gap: spacing.sm }}>
+              {orders.data.slice(0, 3).map((o) => (
+                <OrderCard key={o.id} order={o} />
+              ))}
+            </View>
+          )}
         </View>
       )}
     </ScrollView>
   );
 }
 
-function SectionTitle({ title, action, onAction, testID }: { title: string; action: string; onAction: () => void; testID: string }) {
+function SectionTitle({ title, open, onToggle, action, onAction, testID }: { title: string; open: boolean; onToggle: () => void; action: string; onAction: () => void; testID: string }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.sectionRow}>
-      <Text style={styles.section}>{title}</Text>
-      <Pressable testID={testID} onPress={onAction} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+      <Pressable testID={`${testID}-toggle`} onPress={onToggle} hitSlop={8} style={styles.sectionToggle}>
+        <Text style={styles.section}>{title}</Text>
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={24} color={colors.brandSecondary} />
+      </Pressable>
+      <Pressable testID={`${testID}-all`} onPress={onAction} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
         <Text style={styles.sectionAction}>{action} ›</Text>
       </Pressable>
     </View>
@@ -149,10 +160,11 @@ const useStyles = makeStyles((c) => ({
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md, minHeight: 48, borderBottomWidth: 1, borderBottomColor: c.divider },
   infoText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 15, flex: 1, lineHeight: 21 },
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xl, marginBottom: spacing.xs },
+  sectionToggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, flex: 1 },
   section: { color: c.brandSecondary, fontFamily: fonts.display, fontSize: 18, letterSpacing: 1.5, textTransform: "uppercase" },
   sectionAction: { color: c.onSurfaceSecondary, fontFamily: fonts.bodyBold, fontSize: 13 },
   favCard: { width: 140, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, overflow: "hidden", paddingBottom: spacing.sm },
   favImg: { height: 120, backgroundColor: "#F2F2F2", padding: 6 },
-  favName: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 12, paddingHorizontal: spacing.sm, marginTop: spacing.sm, minHeight: 32 },
+  favName: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 12, lineHeight: 16, paddingHorizontal: spacing.sm, marginTop: spacing.sm, minHeight: 32 },
   favColor: { color: c.muted, fontFamily: fonts.body, fontSize: 11, paddingHorizontal: spacing.sm },
 }));

@@ -158,12 +158,12 @@ export default function Checkout() {
               <View style={styles.addrBox} testID="delivery-address-form">
                 <Field label="Mottagare" optional testID="delivery-name-input" value={addr.name} onChangeText={setA("name")} placeholder={user?.company} />
                 <Field label="Adress" testID="delivery-address-input" value={addr.address} onChangeText={setA("address")} placeholder="Gata och nummer" />
-                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" }}>
                   <View style={{ flex: 1 }}>
-                    <Field label="Postnummer" testID="delivery-postal-input" value={addr.postal_code} onChangeText={setA("postal_code")} keyboardType="number-pad" />
+                    <Field label="Postnr" testID="delivery-postal-input" value={addr.postal_code} onChangeText={setA("postal_code")} keyboardType="number-pad" placeholder="123 45" maxLength={6} />
                   </View>
-                  <View style={{ flex: 1.4 }}>
-                    <Field label="Ort" testID="delivery-city-input" value={addr.city} onChangeText={setA("city")} />
+                  <View style={{ flex: 2 }}>
+                    <Field label="Ort" testID="delivery-city-input" value={addr.city} onChangeText={setA("city")} placeholder="T.ex. Borås" />
                   </View>
                 </View>
               </View>

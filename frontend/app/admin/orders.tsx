@@ -27,6 +27,17 @@ export default function AdminOrders() {
     setError("");
   };
 
+  const markReady = async (o: Order) => {
+    try {
+      await api(`/admin/orders/${o.id}/ready`, { method: "POST" });
+      haptic("success");
+      toast(`Order ${o.order_number} klarmarkerad – kunden har fått besked`, "success");
+      q.refetch();
+    } catch (e: any) {
+      toast(e.message, "error");
+    }
+  };
+
   const send = async (action: "confirm" | "decline") => {
     if (!target || !message.trim()) return setError("Skriv ett meddelande till beställaren.");
     setSending(true);
@@ -55,7 +66,7 @@ export default function AdminOrders() {
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} tintColor={colors.brandPrimary} />}
         ListEmptyComponent={q.isLoading ? null : <EmptyState icon="package-variant" title="Inga ordrar än" />}
-        renderItem={({ item }) => <OrderCard order={item} showCompany onReply={() => open(item)} />}
+        renderItem={({ item }) => <OrderCard order={item} showCompany onReply={() => open(item)} onReady={() => markReady(item)} />}
       />
       <Modal visible={!!target} transparent animationType="slide" onRequestClose={() => setTarget(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>

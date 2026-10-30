@@ -10,7 +10,7 @@ import { useNotifications } from "@/src/components/notification-bell";
 import { EmptyState, Icon, IconName, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-const ICONS: Record<AppNotification["kind"], IconName> = { new: "package-variant", confirmed: "check-decagram", declined: "close-octagon", broadcast: "bullhorn" };
+const ICONS: Record<AppNotification["kind"], IconName> = { new: "package-variant", confirmed: "check-decagram", declined: "close-octagon", broadcast: "bullhorn", ready: "package-variant-closed-check" };
 
 export default function Notifications() {
   const styles = useStyles();
@@ -59,7 +59,7 @@ export default function Notifications() {
         ListEmptyComponent={q.isLoading ? null : <EmptyState icon="bell-sleep-outline" title="Inga notiser" text="Här ser du när en order bekräftas eller nekas." />}
         renderItem={({ item }) => (
           <Pressable testID={`notification-${item.id}`} onPress={() => open(item)} style={({ pressed }) => [styles.row, !item.read && styles.unread, pressed && { opacity: 0.8 }]}>
-            <View style={[styles.icon, item.kind === "declined" && { backgroundColor: colors.error }, item.kind === "confirmed" && { backgroundColor: colors.success }, item.kind === "broadcast" && { backgroundColor: colors.brandPrimary }]}>
+            <View style={[styles.icon, item.kind === "declined" && { backgroundColor: colors.error }, item.kind === "confirmed" && { backgroundColor: colors.success }, item.kind === "ready" && { backgroundColor: colors.success }, item.kind === "broadcast" && { backgroundColor: colors.brandPrimary }]}>
               <Icon name={ICONS[item.kind] ?? "bell"} size={22} color={item.kind === "new" ? colors.brandSecondary : item.kind === "broadcast" ? colors.onBrandPrimary : colors.onSuccess} />
             </View>
             <View style={{ flex: 1 }}>

@@ -57,7 +57,7 @@ export type Product = {
 export type FilterDef = { code: string; name: string; values: { value: string; count: number }[] };
 export type AppNotification = {
   id: string;
-  kind: "new" | "confirmed" | "declined" | "broadcast";
+  kind: "new" | "confirmed" | "declined" | "broadcast" | "ready";
   order_id: string | null;
   order_number: string | null;
   title: string;
@@ -114,7 +114,8 @@ export type Order = {
   credits_earned?: number;
   created_at: string;
   email_status: string;
-  status?: "new" | "confirmed" | "declined";
+  status?: "new" | "confirmed" | "declined" | "ready";
+  ready_at?: string;
   replies?: { message: string; created_at: string; action?: "confirm" | "decline" }[];
   customer: { company: string; email: string };
 };

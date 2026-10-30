@@ -18,11 +18,10 @@ LogBox.ignoreAllLogs(true);
 export default function RootLayout() {
   // Prewarm brand fonts + icon font so icons render in Expo Go on Android.
   const [loaded, error] = useFonts({
-    "BarlowCondensed-Bold": require("../assets/fonts/BarlowCondensed-Bold.ttf"),
-    "BarlowCondensed-SemiBold": require("../assets/fonts/BarlowCondensed-SemiBold.ttf"),
-    "BarlowCondensed-ExtraBold": require("../assets/fonts/BarlowCondensed-ExtraBold.ttf"),
-    "Chivo-Regular": require("../assets/fonts/Chivo-400.ttf"),
-    "Chivo-Bold": require("../assets/fonts/Chivo-700.ttf"),
+    "UnitedSansCond-Bold": require("../assets/fonts/UnitedSansCond-Bold.otf"),
+    "UnitedSansCond-Black": require("../assets/fonts/UnitedSansCond-Black.otf"),
+    "Gotham-Book": require("../assets/fonts/Gotham-Book.otf"),
+    "Gotham-Medium": require("../assets/fonts/Gotham-Medium.otf"),
     MaterialDesignIcons: require("@react-native-vector-icons/material-design-icons/fonts/MaterialDesignIcons.ttf"),
   });
 

@@ -71,3 +71,8 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Shop: purchased products first (newest, colour-filter aware) with "Köpt tidigare"; admin eye button hides products per city (hidden_city_ids) – customers never see them (list, detail, favourites, ordering).
 - Admin broadcast (/admin/broadcast) → in-app notifications to customers (all or one city). Real push postponed by user.
 - Theme: navy (Blåkläder) + logo red #D0102E. Custom font: waiting for user to re-upload (first file was empty).
+
+## Iteration 13 (fork 2)
+- Custom fonts: United Sans Cond (Bold/Black) headings, Gotham (Book/Medium) body.
+- Order status flow: Inväntar bekräftelse → Bekräftad / Nekad → Klar (POST /api/admin/orders/{id}/ready, in-app notification "Ordern är klar"; push postponed by user).
+- "Beställ igen" in expanded order card; home sections collapsible; checkout address row aligned.

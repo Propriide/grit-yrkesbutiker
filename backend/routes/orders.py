@@ -318,8 +318,10 @@ async def send_order_reply(order: dict, message: str, action: str = "confirm") -
         return e.detail if e.status_code == 503 else "Mejlet kunde inte skickas just nu. Försök igen om en stund."
     reply = {"message": message, "created_at": now_iso(), "action": action}
     status = "confirmed" if action == "confirm" else "declined"
-    await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply},
-                                                     "$set": {"status": status, f"{status}_at": reply["created_at"]}})
+    upd = {"status": status, f"{status}_at": reply["created_at"]}
+    if order.get("status") == "ready" and action == "confirm":
+        upd = {}  # an extra message on a finished order must not move it back from "Klar"
+    await db.orders.update_one({"id": order["id"]}, {"$push": {"replies": reply}, **({"$set": upd} if upd else {})})
     await notify(order["user_id"], order, status,
                  f"Order {order['order_number']} {'bekräftad' if action == 'confirm' else 'nekad'}", message)
     if action == "confirm":
@@ -382,6 +384,24 @@ async def order_reply_submit(token: str, request: Request):
         f'<strong>{escape(order["customer"]["email"])}</strong> och ordern {escape(order["order_number"])} är markerad som {state}.'
         f'<div class="rep">{escape(message)}</div></div>'
         f'<p class="m" style="margin-top:16px"><a style="color:#D0102E" href="/api/order-reply/{escape(token)}">Skicka ytterligare ett svar</a></p>')
+
+
+@router.post("/admin/orders/{order_id}/ready")
+async def admin_mark_ready(order_id: str, _: dict = Depends(admin_only)):
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Ordern hittades inte")
+    if order.get("status") != "confirmed":
+        raise HTTPException(400, "Bara bekräftade ordrar kan klarmarkeras")
+    ready_at = now_iso()
+    r = await db.orders.update_one({"id": order_id, "status": "confirmed"}, {"$set": {"status": "ready", "ready_at": ready_at}})
+    if not r.modified_count:
+        raise HTTPException(400, "Bara bekräftade ordrar kan klarmarkeras")
+    try:
+        await notify(order["user_id"], order, "ready", f"Order {order['order_number']} är klar", "Ordern är klar.")
+    except Exception:
+        logger.exception("Ready notification failed for order %s", order["order_number"])
+    return await db.orders.find_one({"id": order_id}, {"_id": 0, "confirm_token": 0})
 
 
 @router.get("/admin/orders")

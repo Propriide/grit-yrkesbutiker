@@ -50,11 +50,11 @@ export const themes: { light?: ThemeColors; dark: ThemeColors } = { dark };
 export const colors = dark;
 
 export const fonts = {
-  display: "BarlowCondensed-Bold",
-  displaySemi: "BarlowCondensed-SemiBold",
-  displayHeavy: "BarlowCondensed-ExtraBold",
-  body: "Chivo-Regular",
-  bodyBold: "Chivo-Bold",
+  display: "UnitedSansCond-Bold",
+  displaySemi: "UnitedSansCond-Bold",
+  displayHeavy: "UnitedSansCond-Black",
+  body: "Gotham-Book",
+  bodyBold: "Gotham-Medium",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };

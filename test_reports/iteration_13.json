@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 13: Klarmarkera, the 'ready' notification, new status labels, the timeline 'Klar' step, 'Beställ igen' in the order card, collapsible home sections, the checkout Postnr/Ort row and the custom fonts. Backend: 7/7 pytest pass for POST /api/admin/orders/{id}/ready. Frontend: every requested flow works in the 390x844 Expo web preview. No bugs block the requested features. No deprecated Expo packages found (no expo-av, expo-barcode-scanner or expo-background-fetch).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/order-reply/{token} (email link) and POST /api/admin/orders/{id}/reply", "issue": "send_order_reply always sets status to 'confirmed' or 'declined'. A reply sent from the email link on an order that is already 'ready' moves it back to Bekräftad, and the Klar step disappears from the customer's timeline. The app hides the reply button for ready orders, but the email reply page still works. Reproduced by reading the code (orders.py:319-322), not run, to save Resend emails."},
+      {"endpoint": "POST /api/admin/orders/{id}/ready", "issue": "The status check and the update are separate steps, not one atomic update. Two admins pressing at the same time can both pass the check and send the customer two 'klar' notifications. Fix: update_one({'id':..., 'status':'confirmed'}, ...) and check modified_count. A second sequential call correctly returns 400."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Order card status badges", "issues": ["'Bekräftad' (brandPrimary #D0102E) and 'Nekad' (error #F44336) are both red badges, so confirmed and declined orders are hard to tell apart. Consider a neutral or info colour for Bekräftad, or an icon."]},
+      {"screen": "Admin Alla ordrar / order detail", "issues": ["Klarmarkera acts on a single tap: no confirm dialog and no undo. The customer is notified immediately. Consider a confirm step."]},
+      {"screen": "Cart / Checkout", "issues": ["After 'Beställ igen', the success toast sits over the bottom 'Till kassan' button for a few seconds. On Kassa it also covers the Postnr/Ort fields."]},
+      {"screen": "Timeline", "issues": ["Once an order is answered, the first step still reads 'Inväntar bekräftelse' (shown as done). This matches the request but reads oddly. 'Skickad / inväntade bekräftelse' or similar may be clearer. Low priority."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter13_order_ready.py", "/app/backend/tests/seed_iter13_ui.py", "/app/test_reports/pytest/pytest_iter13.xml"],
+  "action_items": [
+    "Optional: make send_order_reply keep status 'ready' (or block replies on ready orders) so the email reply link can't move a Klar order back to Bekräftad.",
+    "Optional: make mark-ready atomic with a conditional update on status 'confirmed'.",
+    "Optional: give the Bekräftad badge a colour that is clearly different from Nekad.",
+    "Optional: add a confirm dialog before Klarmarkera."
+  ],
+  "critical_code_review_comments": [
+    "admin_mark_ready returns the order without _id and confirm_token. The customer GET still hides order_value and confirm_token. Verified.",
+    "OrderCard hides 'Skicka nytt svar' for ready orders. Klarmarkera shows only when onReady is set and the status is confirmed. Customers never see it (verified: count 0).",
+    "useReorder uses router.dismissTo('/(tabs)/cart'). This works both from the stack screen /orders and from /order/[id].",
+    "checkout.tsx: the Postnr input uses keyboardType='number-pad' with the placeholder '123 45'. A space can't be typed on the iOS number pad. This is harmless because the backend accepts '12345'."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter13_order_ready.py (new)", "/app/backend/tests/seed_iter13_ui.py (new)"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Customer delivered+ui13@resend.dev with orders UI13NEW, UI13CON, UI13DEC, UI13REA and UI13CO2 (inserted directly in the DB, no emails) plus 1 favourite. Everything was deleted afterwards with 'python seed_iter13_ui.py cleanup'. The pytest file cleans up its own TEST13* orders and user. No real orders were placed and no emails were sent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run 'python /app/backend/tests/seed_iter13_ui.py' to seed a customer (delivered+ui13@resend.dev / secret12) with orders in every status. Run it with 'cleanup' afterwards. In the web preview, the tab screens stay mounted under stack screens, so use '[data-testid=X]:visible' selectors (duplicate order-card testIDs come from home plus /orders). The home page shows only the 3 latest orders. Fonts were verified via document.fonts: UnitedSansCond-Bold/Black and Gotham-Book/Medium loaded, and the computed fontFamily matches."
+}

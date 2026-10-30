@@ -1,13 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, deliveryText, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { useCart } from "@/src/cart";
-import { formatDate } from "@/src/components/order-card";
+import { formatDate, useReorder } from "@/src/components/order-card";
 import { Button, EmptyState, haptic, Icon, IconName, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -15,12 +14,15 @@ import { useToast } from "@/src/toast";
 type Step = { key: string; label: string; icon: IconName; date?: string; message?: string; tone: "done" | "pending" | "declined" };
 
 function buildSteps(o: Order): Step[] {
-  const steps: Step[] = [{ key: "sent", label: "Skickad", icon: "send-check", date: o.created_at, tone: "done" }];
+  const answered = !!o.replies?.length;
+  const steps: Step[] = [
+    { key: "sent", label: "Inväntar bekräftelse", icon: answered ? "send-check" : "timer-sand", date: o.created_at, tone: answered ? "done" : "pending" },
+  ];
   for (const r of o.replies ?? []) {
     const declined = r.action === "decline";
     steps.push({ key: r.created_at, label: declined ? "Nekad" : "Bekräftad", icon: declined ? "close-octagon" : "check-decagram", date: r.created_at, message: r.message, tone: declined ? "declined" : "done" });
   }
-  if (!o.replies?.length) steps.push({ key: "pending", label: "Väntar på bekräftelse", icon: "timer-sand", tone: "pending" });
+  if (o.status === "ready") steps.push({ key: "ready", label: "Klar", icon: "package-variant-closed-check", date: o.ready_at, message: "Ordern är klar.", tone: "done" });
   return steps;
 }
 
@@ -31,10 +33,26 @@ export default function OrderDetail() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const cart = useCart();
+  const reorder = useReorder();
   const toast = useToast();
   const q = useQuery({ queryKey: ["order", id], queryFn: () => api<Order>(`/orders/${id}`) });
   const o = q.data;
+  const [readying, setReadying] = useState(false);
+
+  const markReady = async () => {
+    setReadying(true);
+    try {
+      await api(`/admin/orders/${id}/ready`, { method: "POST" });
+      haptic("success");
+      toast("Ordern är klarmarkerad – kunden har fått besked", "success");
+      q.refetch();
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setReadying(false);
+    }
+  };
 
   useEffect(() => {
     if (o) qc.invalidateQueries({ queryKey: ["notifications"] });
@@ -113,15 +131,11 @@ export default function OrderDetail() {
               icon="cart-arrow-down"
               testID="order-reorder-button"
               style={{ marginTop: spacing.xl }}
-              onPress={() => {
-                for (const i of o.items) {
-                  cart.add({ part_no: i.part_no, name: i.name, image_url: i.image_url, color_code: i.color_code, color_name: i.color_name, size: i.size, quantity: i.quantity });
-                }
-                haptic("success");
-                toast(`${o.items.reduce((s, i) => s + i.quantity, 0)} st lagda i varukorgen`, "success");
-                router.dismissTo("/(tabs)/cart");
-              }}
+              onPress={() => reorder(o)}
             />
+          )}
+          {user?.role === "admin" && o.status === "confirmed" && (
+            <Button title="Klarmarkera order" icon="package-variant-closed-check" testID="order-ready-button" onPress={markReady} loading={readying} style={{ marginTop: spacing.xl }} />
           )}
           {user?.role === "admin" && (
             <Button title="Bekräfta / neka i Alla ordrar" icon="clipboard-list" variant="secondary" testID="order-manage-button" onPress={() => router.push("/admin/orders")} style={{ marginTop: spacing.xl }} />
