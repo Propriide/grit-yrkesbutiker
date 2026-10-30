@@ -33,7 +33,7 @@ export function OrderCard({ order, showCompany, onReply }: { order: Order; showC
         </View>
         <View style={[styles.status, sent ? styles.statusOk : styles.statusFail, confirmed && styles.statusConfirmed, declined && styles.statusFail]} testID={`order-status-${order.order_number}`}>
           <Text style={[styles.statusText, (!sent || declined) && { color: colors.onError }, confirmed && { color: colors.onBrandSecondary }]}>
-            {confirmed ? "Bekräftad" : declined ? "Nekad" : sent ? "Skickad" : "Ej skickad"}
+            {confirmed ? "Bekräftad" : declined ? "Nekad" : "Skickad"}
           </Text>
         </View>
         <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.muted} />

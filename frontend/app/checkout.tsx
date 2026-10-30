@@ -1,14 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, Order } from "@/src/api";
+import { api, DELIVERY_LABELS, DeliveryMethod, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useCart } from "@/src/cart";
-import { Button, EmptyState, ErrorBanner, haptic, Icon, ScreenHeader } from "@/src/components/ui";
+import { Button, EmptyState, ErrorBanner, Field, haptic, Icon, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function Checkout() {
@@ -19,11 +19,24 @@ export default function Checkout() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
+  const [method, setMethod] = useState<DeliveryMethod | null>(null);
+  const [addr, setAddr] = useState({ name: "", address: "", postal_code: "", city: "" });
+  const setA = (k: keyof typeof addr) => (v: string) => setAddr((p) => ({ ...p, [k]: v }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Order | null>(null);
 
   const submit = async () => {
+    if (!method) {
+      haptic("error");
+      setError("Välj hur ordern ska levereras.");
+      return;
+    }
+    if (method === "ship" && (!addr.address.trim() || !addr.postal_code.trim() || !addr.city.trim())) {
+      haptic("error");
+      setError("Fyll i adress, postnummer och ort för leveransen.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -31,6 +44,7 @@ export default function Checkout() {
         method: "POST",
         body: {
           comment,
+          delivery: method === "ship" ? { method, ...addr } : { method },
           items: cart.items.map((i) => ({ part_no: i.part_no, color_code: i.color_code, size: i.size, quantity: i.quantity })),
         },
       });
@@ -109,6 +123,52 @@ export default function Checkout() {
               ))}
             </View>
 
+            <Text style={styles.section}>Leverans *</Text>
+            <View style={{ gap: spacing.sm }} testID="delivery-options">
+              {(
+                [
+                  ["store", "storefront-outline", "Hämtas i din butik"],
+                  ["parcel_box", "package-variant-closed", "Hämtas i paketbox"],
+                  ["ship", "truck-delivery-outline", "Skickas till adress du anger"],
+                ] as const
+              ).map(([m, icon, sub]) => {
+                const active = method === m;
+                return (
+                  <Pressable
+                    key={m}
+                    testID={`delivery-${m}`}
+                    onPress={() => {
+                      haptic("selection");
+                      setMethod(m);
+                      setError("");
+                    }}
+                    style={[styles.option, active && styles.optionActive]}
+                  >
+                    <Icon name={icon} size={24} color={active ? colors.brandPrimary : colors.onSurfaceSecondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.optionTitle}>{DELIVERY_LABELS[m]}</Text>
+                      <Text style={styles.optionSub}>{sub}</Text>
+                    </View>
+                    <Icon name={active ? "radiobox-marked" : "radiobox-blank"} size={22} color={active ? colors.brandPrimary : colors.muted} />
+                  </Pressable>
+                );
+              })}
+            </View>
+            {method === "ship" && (
+              <View style={styles.addrBox} testID="delivery-address-form">
+                <Field label="Mottagare" optional testID="delivery-name-input" value={addr.name} onChangeText={setA("name")} placeholder={user?.company} />
+                <Field label="Adress" testID="delivery-address-input" value={addr.address} onChangeText={setA("address")} placeholder="Gata och nummer" />
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Postnummer" testID="delivery-postal-input" value={addr.postal_code} onChangeText={setA("postal_code")} keyboardType="number-pad" />
+                  </View>
+                  <View style={{ flex: 1.4 }}>
+                    <Field label="Ort" testID="delivery-city-input" value={addr.city} onChangeText={setA("city")} />
+                  </View>
+                </View>
+              </View>
+            )}
+
             <Text style={styles.section}>Kommentar / önskat leveransdatum</Text>
             <TextInput
               testID="checkout-comment-input"
@@ -169,6 +229,11 @@ const useStyles = makeStyles((c) => ({
     fontSize: 15,
   },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.divider },
+  option: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 60, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
+  optionActive: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
+  optionTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
+  optionSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
+  addrBox: { marginTop: spacing.md, padding: spacing.lg, paddingBottom: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
   successIcon: { width: 96, height: 96, borderRadius: radius.lg, backgroundColor: c.success, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: spacing.xl },
   successTitle: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 36, textTransform: "uppercase", textAlign: "center" },
   successNum: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 22, textAlign: "center", marginTop: spacing.xs },

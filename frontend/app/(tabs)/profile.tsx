@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/auth";
 import { Button, Icon, IconName } from "@/src/components/ui";
+import { CreditsBadge } from "@/src/components/credits-badge";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -26,7 +27,8 @@ export default function Profile() {
             <Text style={styles.adminBadgeText}>ADMIN</Text>
           </View>
         )}
-        <NotificationBell />
+        <CreditsBadge />
+          <NotificationBell />
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: bottomChrome + spacing.xl }}>
         <View style={styles.card}>
@@ -58,6 +60,7 @@ export default function Profile() {
               <Row icon="storefront" title="Startsida (standard)" sub="Visas för konton utan egen butikstext" testID="admin-default-store-row" onPress={() => router.push("/admin/store/default")} />
               <Row icon="map-marker-radius" title="Orter & butiker" sub="Orter och startsida per butik" testID="admin-cities-row" onPress={() => router.push("/admin/cities")} />
               <Row icon="account-group" title="Hantera kunder" sub="Kundkonton, ort, spärra & ta bort" testID="admin-users-row" onPress={() => router.push("/admin/users")} />
+              <Row icon="bullhorn" title="Skicka utskick" sub="Erbjudanden till alla eller en ort" testID="admin-broadcast-row" onPress={() => router.push("/admin/broadcast")} />
               <Row icon="clipboard-list" title="Alla ordrar" sub="Samtliga beställningar" testID="admin-orders-row" onPress={() => router.push("/admin/orders")} last />
             </View>
           </>

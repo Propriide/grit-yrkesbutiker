@@ -9,7 +9,8 @@ import { api, City, Order, User } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CityPicker } from "@/src/components/city-picker";
 import { CompanyInput } from "@/src/components/company-input";
-import { OrderCard } from "@/src/components/order-card";
+import { CreditTx, txLabel } from "@/src/components/credits-badge";
+import { formatDate, OrderCard } from "@/src/components/order-card";
 import { Button, ErrorBanner, Field, haptic, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -32,6 +33,45 @@ export default function AdminUserDetail() {
   const [newPw, setNewPw] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const isMe = me?.id === id;
+  const creditTx = useQuery({ queryKey: ["admin-user-credits", id], queryFn: () => api<CreditTx[]>(`/admin/users/${id}/credits`), enabled: !!q.data?.credits_enabled });
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+
+  const toggleCredits = async (v: boolean) => {
+    try {
+      await api(`/admin/users/${id}`, { method: "PUT", body: { credits_enabled: v } });
+      haptic("selection");
+      toast(v ? "Credits aktiverat" : "Credits avaktiverat", "success");
+      q.refetch();
+      qc.invalidateQueries({ queryKey: ["credits"] });
+    } catch (e: any) {
+      toast(e.message, "error");
+    }
+  };
+
+  const adjust = async (sign: 1 | -1) => {
+    const n = parseInt(amount, 10);
+    if (!n) {
+      toast("Ange antal credits", "error");
+      return;
+    }
+    setAdjusting(true);
+    try {
+      await api(`/admin/users/${id}/credits`, { method: "POST", body: { amount: sign * n, note } });
+      haptic("success");
+      toast(sign > 0 ? `+${n} credits` : `-${n} credits`, "success");
+      setAmount("");
+      setNote("");
+      q.refetch();
+      creditTx.refetch();
+      qc.invalidateQueries({ queryKey: ["credits"] });
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setAdjusting(false);
+    }
+  };
 
   const setPassword = async () => {
     if (newPw.length < 6) {
@@ -150,6 +190,53 @@ export default function AdminUserDetail() {
 
           <Button title="Spara ändringar" testID="user-save-button" onPress={save} loading={saving} style={{ marginTop: spacing.lg }} />
 
+          <View style={styles.pwBox} testID="user-credits-box">
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchTitle}>Credits</Text>
+                <Text style={styles.switchSub}>1 credit per 100 kr när en order bekräftas</Text>
+              </View>
+              <Switch
+                testID="user-credits-switch"
+                value={!!q.data?.credits_enabled}
+                onValueChange={toggleCredits}
+                trackColor={{ true: colors.brandPrimary, false: colors.surfaceTertiary }}
+                thumbColor={colors.onSurface}
+                {...({ activeThumbColor: colors.onSurface } as object)}
+              />
+            </View>
+            {q.data?.credits_enabled && (
+              <>
+                <Text style={styles.statNum} testID="user-credits-balance">
+                  {q.data.credits ?? 0} <Text style={styles.statLabel}>credits</Text>
+                </Text>
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Antal" testID="user-credits-amount-input" value={amount} onChangeText={(v) => setAmount(v.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="T.ex. 50" />
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <Field label="Notering" optional testID="user-credits-note-input" value={note} onChangeText={setNote} placeholder="T.ex. kampanj" />
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <Button title="Fyll på" icon="plus" testID="user-credits-add-button" onPress={() => adjust(1)} loading={adjusting} style={{ flex: 1 }} />
+                  <Button title="Ta bort" icon="minus" variant="secondary" testID="user-credits-remove-button" onPress={() => adjust(-1)} loading={adjusting} style={{ flex: 1 }} />
+                </View>
+                {creditTx.data?.slice(0, 5).map((t) => (
+                  <View key={t.id} style={styles.txRow}>
+                    <Text style={styles.switchSub}>
+                      {txLabel(t)} · {formatDate(t.created_at)}
+                    </Text>
+                    <Text style={[styles.switchTitle, { color: t.amount > 0 ? colors.success : colors.error }]}>
+                      {t.amount > 0 ? "+" : ""}
+                      {t.amount}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
+
           <Text style={styles.section}>Ordrar ({orders.data?.length ?? 0})</Text>
           <View style={{ gap: spacing.sm }} testID="user-orders-list">
             {orders.isLoading ? (
@@ -204,4 +291,5 @@ const useStyles = makeStyles((c) => ({
   deleteText: { color: c.error, fontFamily: fonts.bodyBold, fontSize: 14 },
   confirm: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.error, gap: spacing.md },
   confirmText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 14 },
+  txRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: c.divider },
 }));

@@ -62,3 +62,12 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Admin company page: Personer/Ordrar tabs (/api/admin/company-orders); user page lists that person's orders (/api/admin/users/{id}/orders).
 - Header home button (ScreenHeader) returns to last visited tab via router.dismissTo (src/navigation.ts). Tab jumps from stack screens use dismissTo (no duplicate tab stacks).
 - Sortiment: heart button next to bell opens favourites, with count badge.
+
+## Iteration 12 (fork 2)
+- Prices scraped again (SEK excl. VAT, never exposed to customers); order_value stored on orders (hidden for customers).
+- Credits: per user (credits_enabled, credits), company toggle (db.companies, inherited by new users), 1 credit/100 kr awarded once on admin confirm; admin add/remove; /api/credits; header CreditsBadge + /credits screen. No spending yet.
+- Checkout: mandatory delivery (store / parcel_box / ship + address).
+- Home: favourites strip + 3 latest orders.
+- Shop: purchased products first (newest, colour-filter aware) with "Köpt tidigare"; admin eye button hides products per city (hidden_city_ids) – customers never see them (list, detail, favourites, ordering).
+- Admin broadcast (/admin/broadcast) → in-app notifications to customers (all or one city). Real push postponed by user.
+- Theme: navy (Blåkläder) + logo red #D0102E. Custom font: waiting for user to re-upload (first file was empty).

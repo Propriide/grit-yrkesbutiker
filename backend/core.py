@@ -65,7 +65,18 @@ async def public_user(u: dict) -> dict:
         "company": u.get("company", ""), "org_number": u.get("org_number") or "",
         "city_id": u.get("city_id"), "city_name": await city_name(u.get("city_id")),
         "disabled": u.get("disabled", False), "created_at": u.get("created_at"),
+        "credits_enabled": bool(u.get("credits_enabled")), "credits": int(u.get("credits") or 0),
     }
+
+
+def company_key(name: str) -> str:
+    """Same company regardless of case or extra spaces: 'Patriks  Bygg' == 'patriks bygg'."""
+    return " ".join((name or "").split()).lower()
+
+
+async def company_credits_default(company: str) -> bool:
+    c = await db.companies.find_one({"key": company_key(company)}, {"_id": 0})
+    return bool(c and c.get("credits_enabled"))
 
 
 async def canonical_company(name: str) -> str:
@@ -102,7 +113,15 @@ async def admin_only(user: dict = Depends(current_user)) -> dict:
     return user
 
 
-async def notify(user_id: str, order: dict, kind: str, title: str, body: str):
+async def notify(user_id: str, order: Optional[dict], kind: str, title: str, body: str, limit: int = 300):
     await db.notifications.insert_one({
-        "id": str(uuid.uuid4()), "user_id": user_id, "kind": kind, "order_id": order["id"],
-        "order_number": order["order_number"], "title": title, "body": body[:300], "read": False, "created_at": now_iso()})
+        "id": str(uuid.uuid4()), "user_id": user_id, "kind": kind, "order_id": order["id"] if order else None,
+        "order_number": order["order_number"] if order else None, "title": title, "body": body[:limit], "read": False,
+        "created_at": now_iso()})
+
+
+def customer_city_filter(user: dict) -> dict:
+    """Products an admin hid for the customer's store are invisible to that customer."""
+    if user.get("role") == "admin" or not user.get("city_id"):
+        return {}
+    return {"hidden_city_ids": {"$ne": user["city_id"]}}

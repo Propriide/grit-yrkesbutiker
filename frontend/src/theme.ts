@@ -7,24 +7,24 @@ import { Appearance, StyleSheet } from "react-native";
 export type ColorScheme = "light" | "dark";
 
 const dark = {
-  surface: "#121212",
+  surface: "#0D1523",
   onSurface: "#FFFFFF",
-  surfaceSecondary: "#1C1C1E",
-  onSurfaceSecondary: "#E0E0E0",
-  surfaceTertiary: "#2C2C2E",
-  onSurfaceTertiary: "#BDBDBD",
+  surfaceSecondary: "#131E30",
+  onSurfaceSecondary: "#DDE1E8",
+  surfaceTertiary: "#1C2A42",
+  onSurfaceTertiary: "#B8C2D1",
   surfaceInverse: "#FFFFFF",
-  onSurfaceInverse: "#121212",
-  muted: "#8A8A8A",
+  onSurfaceInverse: "#0D1523",
+  muted: "#94A3B8",
 
-  brand: "#FF9900",
-  onBrand: "#000000",
-  brandPrimary: "#FF9900",
-  onBrandPrimary: "#000000",
-  brandSecondary: "#FFCC00",
-  onBrandSecondary: "#000000",
-  brandTertiary: "#4A3100",
-  onBrandTertiary: "#FFCC00",
+  brand: "#D0102E",
+  onBrand: "#FFFFFF",
+  brandPrimary: "#D0102E",
+  onBrandPrimary: "#FFFFFF",
+  brandSecondary: "#FF5468",
+  onBrandSecondary: "#FFFFFF",
+  brandTertiary: "#3B1222",
+  onBrandTertiary: "#FF5468",
 
   success: "#4CAF50",
   onSuccess: "#000000",
@@ -35,10 +35,10 @@ const dark = {
   info: "#2196F3",
   onInfo: "#FFFFFF",
 
-  border: "#333333",
-  borderStrong: "#555555",
-  divider: "#2C2C2C",
-  scrim: "rgba(18,18,18,0.92)",
+  border: "#2C3B56",
+  borderStrong: "#475673",
+  divider: "#1F2C44",
+  scrim: "rgba(13,21,35,0.92)",
 };
 
 export type ThemeColors = typeof dark;

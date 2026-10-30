@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from core import current_user, db, now_iso
+from core import current_user, customer_city_filter, db, now_iso
 
 router = APIRouter()
 
@@ -16,7 +16,11 @@ class FavoriteIn(BaseModel):
 
 @router.get("/favorites")
 async def list_favorites(user: dict = Depends(current_user)):
-    return await db.favorites.find({"user_id": user["id"]}, {"_id": 0, "user_id": 0}).sort("created_at", -1).to_list(500)
+    favs = await db.favorites.find({"user_id": user["id"]}, {"_id": 0, "user_id": 0}).sort("created_at", -1).to_list(500)
+    if (hide := customer_city_filter(user)) and favs:
+        visible = {p["part_no"] async for p in db.products.find({"part_no": {"$in": [f["part_no"] for f in favs]}, **hide}, {"_id": 0, "part_no": 1})}
+        favs = [f for f in favs if f["part_no"] in visible]
+    return favs
 
 
 @router.post("/favorites")

@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
 
-from core import admin_only, city_name, current_user, db, logger, notify, now_iso
+from core import admin_only, city_name, current_user, customer_city_filter, db, logger, notify, now_iso
 from emailer import EMAIL_FROM_NAME, send_email
 from emailer import _assert_safe_email as assert_safe_email
 
@@ -25,9 +25,34 @@ class OrderItemIn(BaseModel):
     quantity: int = Field(ge=1, le=9999)
 
 
+class DeliveryIn(BaseModel):
+    method: str  # store | parcel_box | ship
+    name: str = Field(default="", max_length=120)
+    address: str = Field(default="", max_length=200)
+    postal_code: str = Field(default="", max_length=20)
+    city: str = Field(default="", max_length=100)
+
+
+DELIVERY_LABELS = {"store": "Hämtas i butik", "parcel_box": "Hämtas i paketbox", "ship": "Skickas"}
+
+
 class OrderIn(BaseModel):
     items: List[OrderItemIn] = Field(min_length=1)
     comment: Optional[str] = Field(default="", max_length=2000)
+    delivery: DeliveryIn
+
+
+def delivery_text(d: Optional[dict]) -> str:
+    if not d:
+        return "-"
+    label = DELIVERY_LABELS.get(d.get("method"), "-")
+    if d.get("method") != "ship":
+        return label
+    parts = [d.get("name"), d.get("address"), f'{d.get("postal_code", "")} {d.get("city", "")}'.strip()]
+    return label + ": " + ", ".join(x for x in parts if x)
+
+
+CUSTOMER_ORDER_PROJ = {"_id": 0, "sent_to": 0, "confirm_token": 0, "order_value": 0}
 
 
 # ---------------------------------------------------------------- orders
@@ -53,16 +78,17 @@ def order_email_html(order: dict, confirm_url: str) -> str:
         f'<tr><td style="padding:2px 12px 2px 0">Ort:</td><td>{escape(c.get("city_name") or "-")}</td></tr>'
         f'<tr><td style="padding:2px 12px 2px 0">Beställare:</td><td>{escape(c["email"])}</td></tr>'
         f'<tr><td style="padding:2px 12px 2px 0">Telefon:</td><td>{escape(c.get("phone") or "-")}</td></tr>'
+        f'<tr><td style="padding:2px 12px 2px 0">Leverans:</td><td><strong>{escape(delivery_text(order.get("delivery")))}</strong></td></tr>'
         '</table>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">'
-        '<tr style="background:#FF9900"><th align="left" style="padding:8px">Artikelnummer</th>'
+        '<tr style="background:#D0102E;color:#fff"><th align="left" style="padding:8px">Artikelnummer</th>'
         '<th align="left" style="padding:8px">Produkt</th><th align="left" style="padding:8px">Färg</th>'
         '<th align="left" style="padding:8px">Storlek</th><th align="right" style="padding:8px">Antal</th></tr>'
         f'{rows}</table>'
         f'<p style="margin:16px 0 4px"><strong>Kommentar / önskat leveransdatum:</strong></p><p style="margin:0">{comment}</p>'
         '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px"><tr>'
-        f'<td style="background:#FF9900;border-radius:6px"><a href="{escape(confirm_url)}" '
-        'style="display:inline-block;padding:14px 28px;color:#000;font-weight:bold;text-decoration:none;'
+        f'<td style="background:#D0102E;border-radius:6px"><a href="{escape(confirm_url)}" '
+        'style="display:inline-block;padding:14px 28px;color:#fff;font-weight:bold;text-decoration:none;'
         'text-transform:uppercase;letter-spacing:1px">Bekräfta order</a></td></tr></table>'
         '<p style="font-size:13px;color:#555;margin:8px 0 0">Öppnar en sida där du kan skicka ett svar till beställaren, '
         't.ex. när leverans sker.</p>'
@@ -73,9 +99,18 @@ def order_email_html(order: dict, confirm_url: str) -> str:
 
 @router.post("/orders")
 async def create_order(body: OrderIn, request: Request, user: dict = Depends(current_user)):
+    d = body.delivery
+    if d.method not in DELIVERY_LABELS:
+        raise HTTPException(400, "Välj leveranssätt")
+    delivery = {"method": d.method}
+    if d.method == "ship":
+        delivery.update(name=d.name.strip(), address=d.address.strip(), postal_code=d.postal_code.strip(), city=d.city.strip())
+        if not (delivery["address"] and delivery["postal_code"] and delivery["city"]):
+            raise HTTPException(400, "Fyll i adress, postnummer och ort för leveransen")
     items = []
+    value = 0.0
     for it in body.items:
-        p = await db.products.find_one({"part_no": it.part_no}, {"_id": 0})
+        p = await db.products.find_one({"part_no": it.part_no, **customer_city_filter(user)}, {"_id": 0})
         if not p:
             raise HTTPException(400, f"Okänd artikel {it.part_no}")
         if p.get("sizes") and it.size not in p["sizes"]:
@@ -87,6 +122,7 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
                       "color_code": color["code"] if color else None,
                       "color_name": color["name"] if color else None,
                       "image_url": (color or {}).get("image_url") or p.get("image_url")})
+        value += float(p.get("price") or 0) * it.quantity
     settings = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
     recipient = settings.get("order_email")
     if not recipient:
@@ -97,7 +133,8 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
         "id": str(uuid.uuid4()), "order_number": f"B{10000 + counter['seq']}", "user_id": user["id"],
         "customer": {"email": user["email"], "company": user.get("company", ""), "phone": user.get("phone", ""),
                      "org_number": user.get("org_number", ""), "city_name": await city_name(user.get("city_id"))},
-        "items": items, "comment": (body.comment or "").strip(), "created_at": now_iso(),
+        "items": items, "comment": (body.comment or "").strip(), "delivery": delivery, "order_value": round(value, 2),
+        "created_at": now_iso(),
         "email_status": "pending", "sent_to": recipient,
         "status": "new", "confirm_token": secrets.token_urlsafe(24), "replies": [],
     }
@@ -123,20 +160,20 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
                          f"{order['customer']['company']} · {sum(i['quantity'] for i in items)} st")
     except Exception:
         logger.exception("Admin notification failed for order %s", order["order_number"])
-    order.pop("sent_to", None)
-    order.pop("confirm_token", None)
+    for k in ("sent_to", "confirm_token", "order_value"):
+        order.pop(k, None)
     return order
 
 
 @router.get("/orders")
 async def my_orders(user: dict = Depends(current_user)):
-    return await db.orders.find({"user_id": user["id"]}, {"_id": 0, "sent_to": 0, "confirm_token": 0}).sort("created_at", -1).to_list(200)
+    return await db.orders.find({"user_id": user["id"]}, CUSTOMER_ORDER_PROJ).sort("created_at", -1).to_list(200)
 
 
 @router.get("/orders/{order_id}")
 async def get_order(order_id: str, user: dict = Depends(current_user)):
     flt = {"id": order_id} if user["role"] == "admin" else {"id": order_id, "user_id": user["id"]}
-    o = await db.orders.find_one(flt, {"_id": 0, "sent_to": 0, "confirm_token": 0})
+    o = await db.orders.find_one(flt, {"_id": 0, "sent_to": 0, "confirm_token": 0} if user["role"] == "admin" else CUSTOMER_ORDER_PROJ)
     if not o:
         raise HTTPException(404, "Ordern hittades inte")
     return o
@@ -184,13 +221,13 @@ def reply_page(title: str, body: str) -> HTMLResponse:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f'<title>{escape(title)}</title><style>'
         'body{margin:0;background:#121212;color:#fff;font-family:Arial,Helvetica,sans-serif}'
-        '.w{max-width:560px;margin:0 auto;padding:24px}.bar{width:8px;height:28px;background:#FF9900;display:inline-block;'
+        '.w{max-width:560px;margin:0 auto;padding:24px}.bar{width:8px;height:28px;background:#D0102E;display:inline-block;'
         'vertical-align:middle;margin-right:10px}h1{display:inline;font-size:26px;text-transform:uppercase;vertical-align:middle}'
         '.c{background:#1C1C1E;border:1px solid #333;border-radius:8px;padding:16px;margin-top:16px}'
         '.m{color:#8A8A8A;font-size:13px}.r{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2C2C2C;gap:12px}'
-        '.q{color:#FFCC00;font-weight:bold;white-space:nowrap}textarea{width:100%;box-sizing:border-box;min-height:140px;background:#2C2C2E;'
+        '.q{color:#FF4D5E;font-weight:bold;white-space:nowrap}textarea{width:100%;box-sizing:border-box;min-height:140px;background:#2C2C2E;'
         'color:#fff;border:1px solid #333;border-radius:8px;padding:12px;font-size:16px;font-family:inherit}'
-        'button{width:100%;margin-top:12px;background:#FF9900;color:#000;border:0;border-radius:8px;padding:16px;font-size:17px;'
+        'button{width:100%;margin-top:12px;background:#D0102E;color:#fff;border:0;border-radius:8px;padding:16px;font-size:17px;'
         'font-weight:bold;text-transform:uppercase;letter-spacing:1px}.ok{border-left:4px solid #4CAF50}.err{border-left:4px solid #F44336}'
         '.rep{background:#2C2C2E;border-radius:6px;padding:10px;margin-top:8px;white-space:pre-wrap}'
         f'</style></head><body><div class="w">{body}</div></body></html>'
@@ -204,6 +241,8 @@ def order_block(order: dict) -> str:
         f'<div class="q">{i["quantity"]} st</div></div>' for i in order["items"])
     c = order["customer"]
     comment = f'<p class="m" style="margin-top:12px">Kommentar: {escape(order["comment"])}</p>' if order.get("comment") else ""
+    if order.get("delivery"):
+        comment += f'<p class="m">Leverans: <strong style="color:#fff">{escape(delivery_text(order["delivery"]))}</strong></p>'
     return (f'<div class="c"><strong>{escape(c["company"])}</strong><div class="m">{escape(c["email"])} · '
             f'{escape(c.get("phone") or "")}</div>{rows}{comment}</div>')
 
@@ -221,10 +260,10 @@ def reply_email_html(order: dict, message: str, action: str = "confirm") -> str:
         f'<h2 style="margin:0 0 8px">Din order {escape(order["order_number"])} '
         f'{"är bekräftad" if action == "confirm" else "har nekats"}</h2>'
         '<p style="margin:0 0 8px"><strong>Meddelande från leverantören:</strong></p>'
-        f'<p style="margin:0 0 16px;padding:12px;background:#FFF4E0;border-left:4px solid #FF9900">'
+        f'<p style="margin:0 0 16px;padding:12px;background:#FDECEE;border-left:4px solid #D0102E">'
         f'{escape(message).replace(chr(10), "<br>")}</p>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">'
-        '<tr style="background:#FF9900"><th align="left" style="padding:6px 8px">Artikelnr</th>'
+        '<tr style="background:#D0102E;color:#fff"><th align="left" style="padding:6px 8px">Artikelnr</th>'
         '<th align="left" style="padding:6px 8px">Produkt</th><th align="left" style="padding:6px 8px">Storlek</th>'
         f'<th align="right" style="padding:6px 8px">Antal</th></tr>{rows}</table>'
         f'<p style="font-size:12px;color:#888;margin-top:24px">Skickat av {escape(EMAIL_FROM_NAME)}. '
@@ -283,7 +322,23 @@ async def send_order_reply(order: dict, message: str, action: str = "confirm") -
                                                      "$set": {"status": status, f"{status}_at": reply["created_at"]}})
     await notify(order["user_id"], order, status,
                  f"Order {order['order_number']} {'bekräftad' if action == 'confirm' else 'nekad'}", message)
+    if action == "confirm":
+        await award_credits(order)
     return None
+
+
+async def award_credits(order: dict):
+    """1 credit per 100 kr (excl. VAT) of the order value, once per order, if credits are on for the customer."""
+    u = await db.users.find_one({"id": order["user_id"]}, {"_id": 0, "credits_enabled": 1})
+    amount = int((order.get("order_value") or 0) // 100)
+    if not u or not u.get("credits_enabled") or amount <= 0:
+        return
+    claimed = await db.orders.update_one({"id": order["id"], "credits_earned": {"$exists": False}}, {"$set": {"credits_earned": amount}})
+    if not claimed.modified_count:
+        return
+    await db.users.update_one({"id": order["user_id"]}, {"$inc": {"credits": amount}})
+    await db.credit_tx.insert_one({"id": str(uuid.uuid4()), "user_id": order["user_id"], "amount": amount, "reason": "order",
+                                   "order_id": order["id"], "order_number": order["order_number"], "note": "", "created_at": now_iso()})
 
 
 class ReplyIn(BaseModel):
@@ -326,7 +381,7 @@ async def order_reply_submit(token: str, request: Request):
         f'<span class="bar"></span><h1>Svar skickat</h1><div class="c ok">Ditt svar har skickats till '
         f'<strong>{escape(order["customer"]["email"])}</strong> och ordern {escape(order["order_number"])} är markerad som {state}.'
         f'<div class="rep">{escape(message)}</div></div>'
-        f'<p class="m" style="margin-top:16px"><a style="color:#FF9900" href="/api/order-reply/{escape(token)}">Skicka ytterligare ett svar</a></p>')
+        f'<p class="m" style="margin-top:16px"><a style="color:#D0102E" href="/api/order-reply/{escape(token)}">Skicka ytterligare ett svar</a></p>')
 
 
 @router.get("/admin/orders")

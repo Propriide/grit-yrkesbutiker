@@ -50,13 +50,16 @@ export type Product = {
   sizes: string[];
   groups?: string[];
   categories?: string[];
+  hidden_city_ids?: string[];
+  purchased?: boolean;
+  purchased_color?: string | null;
 };
 export type FilterDef = { code: string; name: string; values: { value: string; count: number }[] };
 export type AppNotification = {
   id: string;
-  kind: "new" | "confirmed" | "declined";
-  order_id: string;
-  order_number: string;
+  kind: "new" | "confirmed" | "declined" | "broadcast";
+  order_id: string | null;
+  order_number: string | null;
   title: string;
   body: string;
   read: boolean;
@@ -81,10 +84,17 @@ export type User = {
   disabled: boolean;
   created_at?: string;
   order_count?: number;
+  credits_enabled?: boolean;
+  credits?: number;
 };
 export type City = { id: string; name: string };
 export type Favorite = { id: string; part_no: string; name: string; color_code: string | null; color_name: string | null; image_url?: string; created_at: string };
-export type Company = { key: string; name: string; count: number; spellings: string[] };
+export type Company = { key: string; name: string; count: number; spellings: string[]; credits_enabled?: boolean };
+export type DeliveryMethod = "store" | "parcel_box" | "ship";
+export type Delivery = { method: DeliveryMethod; name?: string; address?: string; postal_code?: string; city?: string };
+export const DELIVERY_LABELS: Record<DeliveryMethod, string> = { store: "Hämtas i butik", parcel_box: "Hämtas i paketbox", ship: "Skickas" };
+export const deliveryText = (d?: Delivery) =>
+  !d ? "" : d.method !== "ship" ? DELIVERY_LABELS[d.method] : [DELIVERY_LABELS.ship + ":", d.name, d.address, `${d.postal_code ?? ""} ${d.city ?? ""}`.trim()].filter(Boolean).join(" ");
 export type OrderItem = {
   part_no: string;
   name: string;
@@ -100,6 +110,8 @@ export type Order = {
   user_id?: string;
   items: OrderItem[];
   comment: string;
+  delivery?: Delivery;
+  credits_earned?: number;
   created_at: string;
   email_status: string;
   status?: "new" | "confirmed" | "declined";

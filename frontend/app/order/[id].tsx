@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, Order } from "@/src/api";
+import { api, deliveryText, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useCart } from "@/src/cart";
 import { formatDate } from "@/src/components/order-card";
@@ -86,6 +86,19 @@ export default function OrderDetail() {
               </View>
             ))}
           </View>
+          {!!o.delivery && (
+            <>
+              <Text style={styles.section}>Leverans</Text>
+              <View style={[styles.card, { padding: spacing.lg }]} testID="order-delivery">
+                <Text style={styles.stepMsg}>{deliveryText(o.delivery)}</Text>
+              </View>
+            </>
+          )}
+          {!!o.credits_earned && (
+            <Text style={[styles.stepMsg, { marginTop: spacing.md, color: colors.brandSecondary }]} testID="order-credits-earned">
+              +{o.credits_earned} credits intjänade på ordern
+            </Text>
+          )}
           {!!o.comment && (
             <>
               <Text style={styles.section}>Kommentar</Text>

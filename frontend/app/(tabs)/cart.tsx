@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useCart } from "@/src/cart";
 import { Button, EmptyState, Icon, Stepper } from "@/src/components/ui";
+import { CreditsBadge } from "@/src/components/credits-badge";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -21,7 +22,8 @@ export default function Cart() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.mark} />
         <Text style={styles.title}>Varukorg</Text>
-        <NotificationBell />
+        <CreditsBadge />
+          <NotificationBell />
         <Text style={styles.count} testID="cart-count">
           {cart.count ? `${cart.count} st` : ""}
         </Text>

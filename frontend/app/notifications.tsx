@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -9,7 +10,7 @@ import { useNotifications } from "@/src/components/notification-bell";
 import { EmptyState, Icon, IconName, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-const ICONS: Record<AppNotification["kind"], IconName> = { new: "package-variant", confirmed: "check-decagram", declined: "close-octagon" };
+const ICONS: Record<AppNotification["kind"], IconName> = { new: "package-variant", confirmed: "check-decagram", declined: "close-octagon", broadcast: "bullhorn" };
 
 export default function Notifications() {
   const styles = useStyles();
@@ -17,11 +18,16 @@ export default function Notifications() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const q = useNotifications();
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const open = async (n: AppNotification) => {
     if (!n.read) {
       await api(`/notifications/${n.id}/read`, { method: "POST" }).catch(() => {});
       qc.invalidateQueries({ queryKey: ["notifications"] });
+    }
+    if (n.kind === "broadcast" || !n.order_id) {
+      setExpanded((e) => (e === n.id ? null : n.id));
+      return;
     }
     router.push(`/order/${n.order_id}`);
   };
@@ -53,13 +59,13 @@ export default function Notifications() {
         ListEmptyComponent={q.isLoading ? null : <EmptyState icon="bell-sleep-outline" title="Inga notiser" text="Här ser du när en order bekräftas eller nekas." />}
         renderItem={({ item }) => (
           <Pressable testID={`notification-${item.id}`} onPress={() => open(item)} style={({ pressed }) => [styles.row, !item.read && styles.unread, pressed && { opacity: 0.8 }]}>
-            <View style={[styles.icon, item.kind === "declined" && { backgroundColor: colors.error }, item.kind === "confirmed" && { backgroundColor: colors.success }]}>
-              <Icon name={ICONS[item.kind]} size={22} color={item.kind === "new" ? colors.brandSecondary : colors.onSuccess} />
+            <View style={[styles.icon, item.kind === "declined" && { backgroundColor: colors.error }, item.kind === "confirmed" && { backgroundColor: colors.success }, item.kind === "broadcast" && { backgroundColor: colors.brandPrimary }]}>
+              <Icon name={ICONS[item.kind] ?? "bell"} size={22} color={item.kind === "new" ? colors.brandSecondary : item.kind === "broadcast" ? colors.onBrandPrimary : colors.onSuccess} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{item.title}</Text>
               {!!item.body && (
-                <Text style={styles.body} numberOfLines={2}>
+                <Text style={styles.body} numberOfLines={expanded === item.id ? undefined : 2}>
                   {item.body}
                 </Text>
               )}

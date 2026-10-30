@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#121212"
+        "backgroundColor": "#0D1523"
       },
       "package": "com.emergent.workwearorder.y0x8uf"
     },
@@ -44,6 +44,6 @@
     "experiments": {
       "typedRoutes": true
     },
-    "backgroundColor": "#121212"
+    "backgroundColor": "#0D1523"
   }
 }

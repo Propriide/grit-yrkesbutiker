@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 import scraper
-from core import admin_only, canonical_company, db, hash_pw, now_iso, public_user
+from core import admin_only, canonical_company, company_credits_default, company_key, db, hash_pw, notify, now_iso, public_user
 
 router = APIRouter()
 
@@ -27,6 +27,27 @@ class UserUpdate(BaseModel):
     city_id: Optional[str] = None
     disabled: Optional[bool] = None
     role: Optional[str] = None
+    credits_enabled: Optional[bool] = None
+
+
+class CreditAdjustIn(BaseModel):
+    amount: int = Field(ge=-1_000_000, le=1_000_000)
+    note: str = Field(default="", max_length=300)
+
+
+class CompanyCreditsIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    enabled: bool
+
+
+class BroadcastIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=2000)
+    city_id: Optional[str] = None
+
+
+class VisibilityIn(BaseModel):
+    hidden_city_ids: list[str] = Field(default_factory=list, max_length=500)
 
 
 class AdminPasswordIn(BaseModel):
@@ -118,6 +139,7 @@ async def admin_create_user(body: AdminUserCreate, _: dict = Depends(admin_only)
         "phone": body.phone.strip(), "company": await canonical_company(body.company), "org_number": (body.org_number or "").strip(),
         "city_id": body.city_id or None, "role": body.role, "disabled": False, "created_at": now_iso(),
     }
+    user["credits_enabled"] = await company_credits_default(user["company"])
     await db.users.insert_one(dict(user))
     return await public_user(user)
 
@@ -162,9 +184,70 @@ async def admin_update_user(user_id: str, body: UserUpdate, admin: dict = Depend
     return await public_user(await db.users.find_one({"id": user_id}, {"_id": 0}))
 
 
-def company_key(name: str) -> str:
-    """Same company regardless of case or extra spaces: 'Patriks  Bygg' == 'patriks bygg'."""
-    return " ".join((name or "").split()).lower()
+@router.post("/admin/users/{user_id}/credits")
+async def admin_adjust_credits(user_id: str, body: CreditAdjustIn, admin: dict = Depends(admin_only)):
+    if body.amount == 0:
+        raise HTTPException(400, "Ange ett antal credits")
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "credits": 1})
+    if not u:
+        raise HTTPException(404, "Kontot hittades inte")
+    if body.amount < 0:
+        r = await db.users.update_one({"id": user_id, "credits": {"$gte": -body.amount}}, {"$inc": {"credits": body.amount}})
+        if not r.modified_count:
+            raise HTTPException(400, f"Kunden har bara {u.get('credits') or 0} credits")
+    else:
+        await db.users.update_one({"id": user_id}, {"$inc": {"credits": body.amount}})
+    await db.credit_tx.insert_one({"id": str(uuid.uuid4()), "user_id": user_id, "amount": body.amount,
+                                   "reason": "admin", "note": body.note.strip(), "by": admin["email"], "created_at": now_iso()})
+    return await public_user(await db.users.find_one({"id": user_id}, {"_id": 0}))
+
+
+@router.get("/admin/users/{user_id}/credits")
+async def admin_credit_history(user_id: str, _: dict = Depends(admin_only)):
+    return await db.credit_tx.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@router.post("/admin/companies/credits")
+async def admin_company_credits(body: CompanyCreditsIn, _: dict = Depends(admin_only)):
+    key = company_key(body.name)
+    await db.companies.update_one({"key": key}, {"$set": {"key": key, "credits_enabled": body.enabled}}, upsert=True)
+    r = await db.users.update_many({"company": _company_rx(body.name)}, {"$set": {"credits_enabled": body.enabled}})
+    return {"key": key, "credits_enabled": body.enabled, "updated": r.modified_count}
+
+
+@router.post("/admin/broadcast")
+async def admin_broadcast(body: BroadcastIn, admin: dict = Depends(admin_only)):
+    title, text = body.title.strip(), body.body.strip()
+    if not title or not text:
+        raise HTTPException(400, "Rubrik och meddelande får inte vara tomma")
+    flt: dict = {"disabled": {"$ne": True}, "role": {"$ne": "admin"}}
+    if body.city_id:
+        if not await db.cities.find_one({"id": body.city_id}):
+            raise HTTPException(400, "Ogiltig ort")
+        flt["city_id"] = body.city_id
+    ids = [u["id"] async for u in db.users.find(flt, {"_id": 0, "id": 1})]
+    for uid in ids:
+        await notify(uid, None, "broadcast", title, text, limit=2000)
+    rec = {"id": str(uuid.uuid4()), "title": title, "body": text, "city_id": body.city_id or None,
+           "recipients": len(ids), "by": admin["email"], "created_at": now_iso()}
+    await db.broadcasts.insert_one(dict(rec))
+    return rec
+
+
+@router.get("/admin/broadcasts")
+async def admin_broadcasts(_: dict = Depends(admin_only)):
+    return await db.broadcasts.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@router.put("/admin/products/{part_no}/visibility")
+async def admin_product_visibility(part_no: str, body: VisibilityIn, _: dict = Depends(admin_only)):
+    ids = sorted(set(body.hidden_city_ids))
+    if ids and await db.cities.count_documents({"id": {"$in": ids}}) != len(ids):
+        raise HTTPException(400, "Ogiltig ort")
+    r = await db.products.update_one({"part_no": part_no}, {"$set": {"hidden_city_ids": ids}})
+    if not r.matched_count:
+        raise HTTPException(404, "Produkten hittades inte")
+    return {"part_no": part_no, "hidden_city_ids": ids}
 
 
 @router.get("/admin/companies")
@@ -177,8 +260,9 @@ async def admin_companies(_: dict = Depends(admin_only)):
         g = groups.setdefault(company_key(name), {"key": company_key(name), "spellings": {}, "count": 0})
         g["count"] += 1
         g["spellings"][name] = g["spellings"].get(name, 0) + 1
+    enabled = {c["key"]: c.get("credits_enabled", False) async for c in db.companies.find({}, {"_id": 0})}
     out = [{"key": g["key"], "name": max(g["spellings"], key=g["spellings"].get), "count": g["count"],
-            "spellings": sorted(g["spellings"])} for g in groups.values()]
+            "spellings": sorted(g["spellings"]), "credits_enabled": enabled.get(g["key"], False)} for g in groups.values()]
     return sorted(out, key=lambda c: c["name"].lower())
 
 

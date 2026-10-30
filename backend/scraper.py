@@ -61,6 +61,7 @@ def _parse_list_item(item: dict, color_names: dict[int, str]) -> dict:
         "slug": inner.get("uniqueName"),
         "description": _strip_html(inner.get("description", "")),
         "image_url": inner.get("imageUrl"),
+        "price": inner.get("price"),  # SEK excl. VAT – never sent to customers, used for credits
         "colors": colors,
         "gender": [v["value"] for v in ((item.get("innerParametrics") or {}).get("GenderSection") or {}).get("values") or [] if v.get("value")],
         "filters": {
@@ -172,7 +173,7 @@ async def scrape_catalog(db) -> int:
             p.update(groups=sorted(grp), categories=sorted(subs), sort_index=i, updated_at=now, active=True)
             if not p["sizes"]:
                 p["sizes"] = ["One size"]
-            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p, "$unset": {"category": "", "price": ""}}, upsert=True)
+            await db.products.update_one({"part_no": p["part_no"]}, {"$set": p, "$unset": {"category": ""}}, upsert=True)
         if products:
             # Products no longer on blaklader.se are hidden, not deleted (old orders keep references).
             await db.products.update_many({"updated_at": {"$ne": now}}, {"$set": {"active": False}})

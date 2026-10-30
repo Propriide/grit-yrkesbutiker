@@ -1,14 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, Order, User } from "@/src/api";
+import { api, Company, Order, User } from "@/src/api";
 import { OrderCard } from "@/src/components/order-card";
-import { EmptyState, ScreenHeader } from "@/src/components/ui";
+import { EmptyState, haptic, ScreenHeader } from "@/src/components/ui";
 import { UserRow } from "@/src/components/user-row";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { useToast } from "@/src/toast";
 
 export default function AdminCompany() {
   const { name = "" } = useLocalSearchParams<{ name: string }>();
@@ -21,10 +22,41 @@ export default function AdminCompany() {
   const active = view === "people" ? users : orders;
   const nUsers = users.data?.length;
   const nOrders = orders.data?.length;
+  const qc = useQueryClient();
+  const toast = useToast();
+  const companies = useQuery({ queryKey: ["admin-companies"], queryFn: () => api<Company[]>("/admin/companies") });
+  const company = companies.data?.find((c) => c.key === name.split(/\s+/).filter(Boolean).join(" ").toLowerCase());
+  const toggleCredits = async (enabled: boolean) => {
+    try {
+      await api("/admin/companies/credits", { method: "POST", body: { name, enabled } });
+      haptic("selection");
+      toast(`Credits ${enabled ? "aktiverat" : "avaktiverat"} för ${name}`, "success");
+      qc.invalidateQueries({ queryKey: ["admin-companies"] });
+      qc.invalidateQueries({ queryKey: ["admin-company-users", name] });
+      qc.invalidateQueries({ queryKey: ["admin-user"] });
+      qc.invalidateQueries({ queryKey: ["credits"] });
+    } catch (e: any) {
+      toast(e.message, "error");
+    }
+  };
 
   return (
     <View style={styles.root}>
       <ScreenHeader title={name} subtitle={nUsers !== undefined ? `${nUsers} ${nUsers === 1 ? "person" : "personer"} på företaget` : undefined} />
+      <View style={styles.creditRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.creditTitle}>Credits för företaget</Text>
+          <Text style={styles.creditSub}>Slår på/av credits för alla personer här (även nya)</Text>
+        </View>
+        <Switch
+          testID="company-credits-switch"
+          value={!!company?.credits_enabled}
+          onValueChange={toggleCredits}
+          trackColor={{ true: colors.brandPrimary, false: colors.surfaceTertiary }}
+          thumbColor={colors.onSurface}
+          {...({ activeThumbColor: colors.onSurface } as object)}
+        />
+      </View>
       <View style={styles.segment}>
         {(
           [
@@ -62,6 +94,9 @@ export default function AdminCompany() {
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
+  creditRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
+  creditTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
+  creditSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   segment: { flexDirection: "row", backgroundColor: c.surfaceTertiary, borderRadius: radius.md, padding: 4, gap: 4, marginHorizontal: spacing.lg, marginTop: spacing.md },
   segBtn: { flex: 1, height: 44, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
   segBtnActive: { backgroundColor: c.brandPrimary },

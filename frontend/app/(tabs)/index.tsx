@@ -5,9 +5,12 @@ import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "reac
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, StoreInfo } from "@/src/api";
+import { api, Order, StoreInfo } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { OrderCard } from "@/src/components/order-card";
+import { useFavorites } from "@/src/favorites";
 import { Button, Icon, IconName } from "@/src/components/ui";
+import { CreditsBadge } from "@/src/components/credits-badge";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -21,6 +24,8 @@ export default function HomeScreen() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const { user } = useAuth();
   const home = useQuery({ queryKey: ["home"], queryFn: () => api<Home>("/home") });
+  const orders = useQuery({ queryKey: ["orders"], queryFn: () => api<Order[]>("/orders") });
+  const favs = useFavorites();
   const h = home.data;
 
   return (
@@ -29,8 +34,9 @@ export default function HomeScreen() {
       contentContainerStyle={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: bottomChrome + spacing.xl }}
       refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => home.refetch()} tintColor={colors.brandPrimary} />}
     >
-      <View style={{ alignItems: "flex-end", marginBottom: spacing.md }}>
-        <NotificationBell />
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginBottom: spacing.md }}>
+        <CreditsBadge />
+          <NotificationBell />
       </View>
       <Animated.View entering={FadeInDown.duration(350)} style={styles.logoCard}>
         <Image testID="home-logo" source={require("../../assets/images/yp-logo.png")} style={styles.logo} contentFit="contain" />
@@ -63,7 +69,60 @@ export default function HomeScreen() {
       ) : null}
 
       <Button title="Till sortimentet" icon="arrow-right" testID="home-shop-button" onPress={() => router.push({ pathname: "/(tabs)/shop", params: { pick: "1", t: String(Date.now()) } })} style={{ marginTop: spacing.xl }} />
+
+      {favs.list.length > 0 && (
+        <View testID="home-favorites">
+          <SectionTitle title="Mina favoriter" action="Visa alla" onAction={() => router.push("/favorites")} testID="home-favorites-all" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }} style={{ marginHorizontal: -spacing.lg }}>
+            <View style={{ width: spacing.lg - spacing.md }} />
+            {favs.list.slice(0, 12).map((f) => (
+              <Pressable
+                key={f.id}
+                testID={`home-favorite-${f.part_no}-${f.color_code ?? "none"}`}
+                onPress={() => router.push(f.color_code ? `/product/${f.part_no}?color=${f.color_code}` : `/product/${f.part_no}`)}
+                style={({ pressed }) => [styles.favCard, pressed && { transform: [{ scale: 0.97 }] }]}
+              >
+                <View style={styles.favImg}>
+                  <Image source={{ uri: f.image_url ? `${f.image_url}?w=300` : undefined }} style={{ width: "100%", height: "100%" }} contentFit="contain" />
+                </View>
+                <Text style={styles.favName} numberOfLines={2}>
+                  {f.name}
+                </Text>
+                {!!f.color_name && (
+                  <Text style={styles.favColor} numberOfLines={1}>
+                    {f.color_name}
+                  </Text>
+                )}
+              </Pressable>
+            ))}
+            <View style={{ width: spacing.lg - spacing.md }} />
+          </ScrollView>
+        </View>
+      )}
+
+      {!!orders.data?.length && (
+        <View testID="home-recent-orders">
+          <SectionTitle title="Senaste ordrar" action="Alla ordrar" onAction={() => router.push("/orders")} testID="home-orders-all" />
+          <View style={{ gap: spacing.sm }}>
+            {orders.data.slice(0, 3).map((o) => (
+              <OrderCard key={o.id} order={o} />
+            ))}
+          </View>
+        </View>
+      )}
     </ScrollView>
+  );
+}
+
+function SectionTitle({ title, action, onAction, testID }: { title: string; action: string; onAction: () => void; testID: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.sectionRow}>
+      <Text style={styles.section}>{title}</Text>
+      <Pressable testID={testID} onPress={onAction} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+        <Text style={styles.sectionAction}>{action} ›</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -89,4 +148,11 @@ const useStyles = makeStyles((c) => ({
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, paddingHorizontal: spacing.lg, marginTop: spacing.xl },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md, minHeight: 48, borderBottomWidth: 1, borderBottomColor: c.divider },
   infoText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 15, flex: 1, lineHeight: 21 },
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xl, marginBottom: spacing.xs },
+  section: { color: c.brandSecondary, fontFamily: fonts.display, fontSize: 18, letterSpacing: 1.5, textTransform: "uppercase" },
+  sectionAction: { color: c.onSurfaceSecondary, fontFamily: fonts.bodyBold, fontSize: 13 },
+  favCard: { width: 140, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, overflow: "hidden", paddingBottom: spacing.sm },
+  favImg: { height: 120, backgroundColor: "#F2F2F2", padding: 6 },
+  favName: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 12, paddingHorizontal: spacing.sm, marginTop: spacing.sm, minHeight: 32 },
+  favColor: { color: c.muted, fontFamily: fonts.body, fontSize: 11, paddingHorizontal: spacing.sm },
 }));

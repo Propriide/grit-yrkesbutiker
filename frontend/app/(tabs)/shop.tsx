@@ -7,10 +7,13 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, CategoryGroup, Product } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import { VisibilitySheet } from "@/src/components/visibility-sheet";
 import { Button, EmptyState, haptic, Icon } from "@/src/components/ui";
 import { CategoryPicker } from "@/src/components/category-picker";
 import { filterCount, FilterSheet, FilterState } from "@/src/components/filter-sheet";
 import { FavoritesButton } from "@/src/components/favorites-button";
+import { CreditsBadge } from "@/src/components/credits-badge";
 import { NotificationBell } from "@/src/components/notification-bell";
 import { pickColor } from "@/src/color-match";
 import { usesNativeTabs } from "@/src/navigation";
@@ -33,6 +36,9 @@ export default function Shop() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [gender, setGender] = useState<"unset" | "" | "herr" | "dam">("unset");
   const params = useLocalSearchParams<{ group?: string; t?: string; pick?: string }>();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [hideFor, setHideFor] = useState<Product | null>(null);
 
   useEffect(() => {
     if (params.pick) setGender("unset");
@@ -83,6 +89,7 @@ export default function Shop() {
           <View style={styles.mark} />
           <Text style={styles.title}>Sortiment</Text>
           <FavoritesButton />
+          <CreditsBadge />
           <NotificationBell />
         </View>
         <Text style={styles.pickHelp}>Välj vilket sortiment du vill se</Text>
@@ -119,6 +126,7 @@ export default function Shop() {
             {total ? `${total} artiklar` : ""}
           </Text>
           <FavoritesButton />
+          <CreditsBadge />
           <NotificationBell />
         </View>
         <View style={styles.segment} testID="gender-toggle">
@@ -221,17 +229,29 @@ export default function Shop() {
           }
           ListFooterComponent={list.isFetchingNextPage ? <ActivityIndicator color={colors.brandPrimary} style={{ margin: spacing.lg }} /> : null}
           renderItem={({ item, index }) => {
-            const match = pickColor(item.colors, selColors);
+            const bought = item.purchased_color ? item.colors?.find((c) => c.code === item.purchased_color) : undefined;
+            const match = bought && (!selColors.length || bought.base?.some((b) => selColors.includes(b))) ? bought : pickColor(item.colors, selColors);
             const img = match?.image_url || item.image_url;
+            const nHidden = item.hidden_city_ids?.length ?? 0;
             return (
             <Animated.View entering={FadeInDown.delay((index % 10) * 40).duration(300)}>
               <Pressable
                 testID={`product-card-${item.part_no}`}
                 onPress={() => router.push(match ? `/product/${item.part_no}?color=${match.code}` : `/product/${item.part_no}`)}
-                style={({ pressed }) => [styles.card, { width: cardW }, pressed && { transform: [{ scale: 0.97 }] }]}
+                style={({ pressed }) => [styles.card, { width: cardW }, item.purchased && styles.cardBought, pressed && { transform: [{ scale: 0.97 }] }]}
               >
                 <View style={styles.imgWrap}>
                   <Image source={{ uri: img ? `${img}?w=400` : undefined }} style={styles.img} contentFit="contain" transition={200} />
+                  {item.purchased && (
+                    <View style={styles.boughtTag} testID={`purchased-tag-${item.part_no}`}>
+                      <Text style={styles.boughtText}>Köpt tidigare</Text>
+                    </View>
+                  )}
+                  {isAdmin && (
+                    <Pressable testID={`hide-product-${item.part_no}`} hitSlop={6} onPress={() => setHideFor(item)} style={[styles.hideBtn, nHidden > 0 && styles.hideBtnActive]}>
+                      <Icon name={nHidden ? "eye-off" : "eye-outline"} size={20} color={nHidden ? colors.onError : colors.onSurface} />
+                    </Pressable>
+                  )}
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.partNo}>{item.part_no}</Text>
@@ -243,6 +263,7 @@ export default function Shop() {
                       <Text style={styles.colorsCount}>{match ? match.name : `${item.colors.length} färger`}</Text>
                     </View>
                   )}
+                  {isAdmin && nHidden > 0 && <Text style={styles.hiddenText}>Dold i {nHidden} {nHidden === 1 ? "butik" : "butiker"}</Text>}
                 </View>
               </Pressable>
             </Animated.View>
@@ -251,6 +272,7 @@ export default function Shop() {
         />
       )}
       <FilterSheet visible={filterOpen} onClose={() => setFilterOpen(false)} value={filters} onApply={setFilters} query={baseQuery} />
+      {isAdmin && <VisibilitySheet product={hideFor} onClose={() => setHideFor(null)} />}
     </View>
   );
 }
@@ -301,4 +323,10 @@ const useStyles = makeStyles((c) => ({
   name: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 13, minHeight: 34 },
   cardFoot: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: spacing.xs },
   colorsCount: { color: c.muted, fontFamily: fonts.body, fontSize: 11 },
+  cardBought: { borderColor: c.brandPrimary },
+  boughtTag: { position: "absolute", left: 6, top: 6, backgroundColor: c.brandPrimary, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  boughtText: { color: c.onBrandPrimary, fontFamily: fonts.bodyBold, fontSize: 10, textTransform: "uppercase" },
+  hideBtn: { position: "absolute", right: 6, top: 6, width: 36, height: 36, borderRadius: radius.md, backgroundColor: c.scrim, alignItems: "center", justifyContent: "center" },
+  hideBtnActive: { backgroundColor: c.error },
+  hiddenText: { color: c.error, fontFamily: fonts.bodyBold, fontSize: 11, marginTop: 2 },
 }));

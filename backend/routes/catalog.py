@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 import scraper
-from core import admin_only, current_user, db
+from core import admin_only, current_user, customer_city_filter, db
 
 router = APIRouter()
 
@@ -79,9 +79,9 @@ async def admin_reset_store(store_id: str, _: dict = Depends(admin_only)):
 
 # ---------------------------------------------------------------- products
 @router.get("/categories")
-async def categories(gender: str = "", _: dict = Depends(current_user)):
+async def categories(gender: str = "", user: dict = Depends(current_user)):
     tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
-    match = _base_filter("", "", "", "", gender)
+    match = _base_filter("", "", "", "", gender, user)
     counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
         {"$match": match}, {"$unwind": "$groups"}, {"$group": {"_id": "$groups", "n": {"$sum": 1}}}])}
     sub_counts = {r["_id"]: r["n"] async for r in db.products.aggregate([
@@ -106,8 +106,8 @@ def _gender_clause(gender: str) -> Optional[dict]:
     return {"$or": [{"gender": {"$in": vals}}, {"gender.0": {"$exists": False}}]}
 
 
-def _base_filter(q: str, group: str, category: str, filters: str, gender: str = "") -> dict:
-    flt: dict = {"active": {"$ne": False}}
+def _base_filter(q: str, group: str, category: str, filters: str, gender: str = "", user: Optional[dict] = None) -> dict:
+    flt: dict = {"active": {"$ne": False}, **customer_city_filter(user or {})}
     if (g := _gender_clause(gender)):
         flt["$and"] = [g]
     if group:
@@ -151,10 +151,10 @@ def _size_key(s: str):
 
 
 @router.get("/filters")
-async def filter_options(q: str = "", group: str = "", category: str = "", gender: str = "", _: dict = Depends(current_user)):
+async def filter_options(q: str = "", group: str = "", category: str = "", gender: str = "", user: dict = Depends(current_user)):
     """Filter panel definitions (Blåkläder order) with counts for the current group/category/search."""
     tree = await db.settings.find_one({"id": "catalog_tree"}, {"_id": 0}) or {}
-    base = _base_filter(q, group, category, "", gender)
+    base = _base_filter(q, group, category, "", gender, user)
     out = []
     for f in tree.get("filters", []):
         field = "$sizes" if f["code"] == "Size" else f"$filters.{f['code']}"
@@ -173,12 +173,16 @@ async def filter_options(q: str = "", group: str = "", category: str = "", gende
 async def products(
     q: str = "", group: str = "", category: str = "", filters: str = "", gender: str = "",
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
-    _: dict = Depends(current_user),
+    user: dict = Depends(current_user),
 ):
-    flt = _base_filter(q, group, category, filters, gender)
+    flt = _base_filter(q, group, category, filters, gender, user)
     total = await db.products.count_documents(flt)
     proj = {"_id": 0, "description": 0, "price": 0, "filters": 0}
+    if user.get("role") != "admin":
+        proj["hidden_city_ids"] = 0
     sel_colors = _selected_colors(filters)
+    bought, bought_color = await _purchase_history(user["id"], sel_colors)
+    color_score: object = 0
     if sel_colors:
         # Rank like a shop would: pure solid colour (only selected bases), solid with extra tone, only-selected combos, mixed.
         c_base = {"$ifNull": ["$$c.base", []]}
@@ -190,14 +194,45 @@ async def products(
             {"case": {"$and": [c_solid, c_hit]}, "then": 2},
             {"case": c_only, "then": 1},
         ], "default": 0}}}}}
-        items = await db.products.aggregate([
-            {"$match": flt}, {"$addFields": {"_score": color_score}}, {"$sort": {"_score": -1, "sort_index": 1}},
-            {"$skip": (page - 1) * page_size}, {"$limit": page_size}, {"$project": {**proj, "_score": 0}},
-        ]).to_list(page_size)
-    else:
-        items = await db.products.find(flt, proj).sort("sort_index", 1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    # The customer's own purchases come first, most recently bought first (respecting the active filters).
+    idx = {"$indexOfArray": [bought, "$part_no"]}
+    bought_rank = {"$cond": [{"$gte": [idx, 0]}, idx, 1_000_000]}
+    items = await db.products.aggregate([
+        {"$match": flt}, {"$addFields": {"_bought": bought_rank, "_score": color_score}},
+        {"$sort": {"_bought": 1, "_score": -1, "sort_index": 1}},
+        {"$skip": (page - 1) * page_size}, {"$limit": page_size}, {"$project": {**proj, "_score": 0, "_bought": 0}},
+    ]).to_list(page_size)
+    for p in items:
+        if p["part_no"] in bought_color:
+            p["purchased"] = True
+            p["purchased_color"] = bought_color[p["part_no"]]
     return {"items": items, "total": total, "page": page, "has_more": page * page_size < total,
             "syncing": scraper.status["running"]}
+
+
+async def _purchase_history(user_id: str, sel_colors: list[str]) -> tuple[list[str], dict]:
+    """Part numbers the user ordered (newest first) and the colour last bought. With a colour filter only
+    purchases in a matching colour count, so a black filter puts the customer's black trousers first."""
+    lines = []
+    async for o in db.orders.find({"user_id": user_id, "status": {"$ne": "declined"}}, {"_id": 0, "items": 1, "created_at": 1}).sort("created_at", -1).limit(300):
+        lines += [(i["part_no"], i.get("color_code")) for i in o["items"]]
+    if not lines:
+        return [], {}
+    bases: dict = {}
+    if sel_colors:
+        async for p in db.products.find({"part_no": {"$in": list({pn for pn, _ in lines})}}, {"_id": 0, "part_no": 1, "colors": 1}):
+            for c in p.get("colors") or []:
+                bases[(p["part_no"], c["code"])] = set(c.get("base") or [])
+    order: list[str] = []
+    color: dict = {}
+    for pn, cc in lines:
+        if pn in color:
+            continue
+        if sel_colors and not (bases.get((pn, cc), set()) & set(sel_colors)):
+            continue
+        color[pn] = cc
+        order.append(pn)
+    return order, color
 
 
 def _selected_colors(filters: str) -> list[str]:
@@ -209,8 +244,9 @@ def _selected_colors(filters: str) -> list[str]:
 
 
 @router.get("/products/{part_no}")
-async def product(part_no: str, _: dict = Depends(current_user)):
-    p = await db.products.find_one({"part_no": part_no}, {"_id": 0, "price": 0})
+async def product(part_no: str, user: dict = Depends(current_user)):
+    proj = {"_id": 0, "price": 0} if user.get("role") == "admin" else {"_id": 0, "price": 0, "hidden_city_ids": 0}
+    p = await db.products.find_one({"part_no": part_no, **customer_city_filter(user)}, proj)
     if not p:
         raise HTTPException(404, "Produkten hittades inte")
     return p

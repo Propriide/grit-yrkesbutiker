@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from core import canonical_company, current_user, db, hash_pw, logger, make_token, now_iso, public_user, verify_pw
+from core import canonical_company, company_credits_default, current_user, db, hash_pw, logger, make_token, now_iso, public_user, verify_pw
 from emailer import EMAIL_FROM_NAME, send_email
 
 router = APIRouter()
@@ -43,6 +43,7 @@ async def register(body: RegisterIn):
         "org_number": (body.org_number or "").strip(), "city_id": body.city_id,
         "role": "customer", "disabled": False, "created_at": now_iso(),
     }
+    user["credits_enabled"] = await company_credits_default(user["company"])
     await db.users.insert_one(user)
     return {"access_token": make_token(user), "user": await public_user(user)}
 

@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 12: delivery choice, hidden prices, credits (user and company), broadcast, per-city product visibility, purchase-first ranking, home favourites and recent orders, and the navy/red theme. Backend: 14/14 pytest pass after 1 fix. The fix: POST /api/admin/users/{id}/credits returned 404 for every user who had never earned credits. Frontend: all requested flows work in the 390x844 Expo web preview. No deprecated Expo packages found (no expo-av, expo-barcode-scanner or expo-background-fetch).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/users/{id}/credits", "issue": "FIXED by T1. The lookup projection {'_id':0,'credits':1} returns {} when the user has no 'credits' field yet, which is true for every new user. 'if not u' then raised 404 'Kontot hittades inte', so admins could never add credits to a fresh customer. Added 'id':1 to the projection.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET/POST /api/favorites", "issue": "Ignores hidden_city_ids. A favourite whose product is hidden for the customer's city still shows on the home page (home-favorites) and in Favoriter. Tapping it opens a detail screen that returns 404. Filter favourites with customer_city_filter, or flag them as unavailable."},
+      {"endpoint": "Resend email", "issue": "Email provider returned 429 rate_limited during the UI order (B10049 stored with email_status=failed, shown as 'EJ SKICKAD'). This is the known environment limit; the order was still saved correctly."},
+      {"endpoint": "POST /api/admin/broadcast", "issue": "Recipients include admin accounts, not only customers. This may be intended; confirm with the user."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "product/[id] for hidden or removed product", "issue": "The 404 is retried by react-query (default 3 retries), so the screen shows a spinner for about 7 seconds. It then shows the generic 'Kunde inte ladda produkten' with a retry button instead of 'Produkten finns inte'. Set retry:false for 404 responses.", "testID": "product-retry-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Order detail", "issues": ["The timeline shows the first step 'SKICKAD' while the orders list badge for the same order (email failed) shows 'EJ SKICKAD'. The two labels contradict each other."]},
+      {"screen": "Admin company page", "issues": ["company-credits-switch shows OFF even when every person in the company has credits enabled individually. It reflects only the company-level flag, which can confuse admins."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter12_delivery_credits_broadcast_visibility.py", "/app/test_reports/pytest/pytest_iter12.xml"],
+  "action_items": [
+    "Filter /api/favorites (and the home favourites list) by customer_city_filter, so products hidden for the customer's city don't appear.",
+    "Product detail: don't retry on 404, and show a 'Produkten finns inte / ej tillgänglig' empty state.",
+    "Optional: make the order timeline wording consistent with the email_status badge.",
+    "Optional: decide whether broadcasts should go to admin accounts too."
+  ],
+  "critical_code_review_comments": [
+    "admin.py admin_adjust_credits: the projection-only find_one plus a truthiness check is a bug pattern (fixed). orders.py:332 award_credits uses the same pattern, but there an empty result correctly means 'credits not enabled'.",
+    "Checking the balance and then doing $inc in admin_adjust_credits is not atomic. Two concurrent removals could push the balance below 0. Use a conditional update ({'credits': {'$gte': -amount}}) instead.",
+    "award_credits is idempotent via a $exists claim on credits_earned. Good.",
+    "The price is excluded via projection in /products, /products/{id} and the customer order projections. Verified that no 'price' or 'order_value' appears in any customer response."
+  ],
+  "updated_files": ["/app/backend/routes/admin.py"],
+  "success_rate": {"backend": "100% (14/14 after fix; 13/14 before)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Temporary customer delivered+ui12@resend.dev with seeded orders, favourites and credits. Deleted after testing, together with its orders, credit_tx, notifications, TEST_ broadcasts and the company record. All products' hidden_city_ids reset to []. settings.order_email restored to prii_de@hotmail.com. The pytest file switches order_email to delivered@resend.dev temporarily and restores it on teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the iter12 tests with '-n 0'. Under xdist, the broadcast recipient count races with parallel registrations. Registered test customers use delivered+<tag>@resend.dev. The test places 1 real order via the API (1 email) and 1 confirm reply. Shop requires tapping gender-pick-all first. Product detail is a stack screen without the tab bar; use product-cart-button to reach the cart. cities[0] from GET /api/cities is Borås (sorted by name)."
+}

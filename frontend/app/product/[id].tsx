@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, Product } from "@/src/api";
+import { api, ApiError, Product } from "@/src/api";
 import { useCart } from "@/src/cart";
 import { useFavorites } from "@/src/favorites";
 import { Button, EmptyState, haptic, Icon, Stepper } from "@/src/components/ui";
@@ -20,7 +20,12 @@ export default function ProductDetail() {
   const insets = useSafeAreaInsets();
   const cart = useCart();
   const toast = useToast();
-  const q = useQuery({ queryKey: ["product", id], queryFn: () => api<Product>(`/products/${id}`) });
+  const q = useQuery({
+    queryKey: ["product", id],
+    queryFn: () => api<Product>(`/products/${id}`),
+    retry: (n, e) => (e as ApiError).status !== 404 && n < 2,
+  });
+  const notFound = (q.error as ApiError | null)?.status === 404;
   const p = q.data;
   const [color, setColor] = useState<string | null>(null);
   const [size, setSize] = useState<string | null>(null);
@@ -101,7 +106,11 @@ export default function ProductDetail() {
         </View>
       ) : q.isError || !p ? (
         <View style={styles.center}>
-          <EmptyState icon="alert-octagon" title="Kunde inte ladda produkten" action={<Button title="Försök igen" testID="product-retry-button" onPress={() => q.refetch()} />} />
+          {notFound ? (
+            <EmptyState icon="hanger" title="Produkten är inte tillgänglig" text="Plagget finns inte i sortimentet för din butik." />
+          ) : (
+            <EmptyState icon="alert-octagon" title="Kunde inte ladda produkten" action={<Button title="Försök igen" testID="product-retry-button" onPress={() => q.refetch()} />} />
+          )}
         </View>
       ) : (
         <>
