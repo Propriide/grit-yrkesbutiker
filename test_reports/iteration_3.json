@@ -35,7 +35,7 @@
   ],
   "critical_code_review_comments": [
     "Prices: products are projected with price:0 in both the list and the detail endpoint, and no 'price' key appears anywhere in the JSON. The frontend shows no price or 'kr' text on cards, detail, cart or checkout.",
-    "public_base suffix matching uses leading-dot suffixes, so 'evilemergentagent.com' is rejected correctly. When X-Forwarded-Host was evil.example.com, the log showed 'Order confirm link base: https://workwear-order-2--7at9xelu.preview.emergentagent.com'.",
+    "public_base suffix matching uses leading-dot suffixes, so 'evilemergentagent.com' is rejected correctly. When X-Forwarded-Host was evil.example.com, the log showed 'Order confirm link base: https://yp-grit-pwa--5cwnslce.preview.emergentagent.com'.",
     "Leftover price styles and formatPrice are dead code."
   ],
   "updated_files": ["/app/backend/tests/test_iter3_filters_home_security.py (new)"],

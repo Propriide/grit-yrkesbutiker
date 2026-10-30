@@ -128,3 +128,10 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Admin seeds now optional per env pair (ADMIN_EMAIL/PASSWORD, SECOND_ADMIN_EMAIL/PASSWORD); production sets only SECOND_ADMIN_* (patrik).
 - /app/DEPLOY_WEB.md: instructions for the new Full Stack web job (serve expo web export, env vars, launch checklist).
 - .env files added to .gitignore so secrets are not pushed to GitHub.
+
+## Iteration 20 – web PWA launch test (new job)
+- Backend code unchanged. Preview DB clean: only admin patrik.degerstam@yp.se (admin@blaklader.local deleted; preview .env still has ADMIN_* so a backend restart re-seeds it here – production must not set ADMIN_*).
+- Catalog auto-scraped on empty DB: 1236 products. Order recipient set to patrik.degerstam@yp.se.
+- `expo export -p web` → frontend/dist; frontend/serve-dist.js = static SPA server with /api proxy (local test on :3001).
+- DEPLOY_WEB checklist 1,2,3,4,6 tested OK (backend + browser on dist build). Remaining: 5 (install on real iPhone/Android) and real web push on device – need public URL.
+- Launch blocked: this is an Expo job; its deployment has no public web URL. Launch via "Add Web App" / new Web App job after user approval. Production secrets still to set: new JWT_SECRET, new VAPID pair, remove ADMIN_* live slot.

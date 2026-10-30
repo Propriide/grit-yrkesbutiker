@@ -20,5 +20,5 @@
   "seed_data_creation": "105 temporary TEST_ notifications for delivered@resend.dev, removed in the finally block",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Run the iter9 tests with: cd /app/backend && python -m pytest tests/test_iter9_color_rank_notif_fixes.py -n 0. They place no orders and send no emails. Do not run test_iter8 (places an order and sends real email). Order ids: B10036=dd3fd3f9-26ae-4901-9cf7-b6820fb32890 (confirmed), B10024=5da06615-6793-433d-93a0-61305bc41fe3 (declined). The public URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env."
+  "context_for_next_testing_agent": "Run the iter9 tests with: cd /app/backend && python -m pytest tests/test_iter9_color_rank_notif_fixes.py -n 0. They place no orders and send no emails. Do not run test_iter8 (places an order and sends real email). Order ids: B10036=yp-grit-pwa--5cwnslce (confirmed), B10024=yp-grit-pwa--5cwnslce (declined). The public URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env."
 }
