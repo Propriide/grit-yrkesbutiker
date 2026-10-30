@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 15: all requested features PASS. Backend 14/14 (+1 skipped: no city-hidden product exists to test exclusion). Register requires name (422 missing/empty), /auth/me returns+updates name (stripped), admin PUT/POST accept name, Patrik has name 'Patrik'. POST /api/credits/estimate: 401 without auth, {enabled:false,credits:0} when disabled, floor(sum(price*qty)/100) when enabled (verified vs DB prices, 1899 kr x1=18, x2=37), no price fields in response, empty/unknown part -> 0, qty 0/1000 -> 422. Frontend (375x667): register shows 'Ange ditt namn' + 'Välj ort' errors, city picker under 'Din butik' works, after register home shows 'VÄLKOMMEN <NAME>' + 'Du handlar nu från butiken i Borås' (centered), no 'Inloggad som'. Cart: cart-credits-estimate shows 18 -> 37 on quantity +1, hidden when credits disabled, no prices shown; cart-item-name and cart-item-open open /product/44062513?color=8953 with that colour selected. Profile edit (in-app nav) prefills+saves name, home updates; empty name falls back to company. Admin user page user-name-input saves & persists; new-user-name-input present. Admin w/o city: no store pill (expected). No deprecated Expo packages in touched files.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register", "issue": "Whitespace-only name ('   ') passes min_length=1 and is stored as '' (200). Validate after strip."},
+      {"endpoint": "PUT /api/auth/me", "issue": "name defaults to '' and can be cleared, although register requires it (home falls back to company, so not breaking)."},
+      {"endpoint": "PUT /api/admin/users/{id}", "issue": "name not stripped (other endpoints strip)."},
+      {"endpoint": "GET /api/admin/users?q=", "issue": "Search matches only email/company, not name."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "account/edit.tsx", "issue": "Form state initialised once via useState from user; on web refresh/deep link to /account/edit the user is still loading, so all fields (name, company, phone) are empty and Save fails with 'Företag är obligatoriskt'. Pre-existing; in-app navigation works. Fix: init in useEffect when user arrives or gate render on auth loading.", "testID": "edit-name-input", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > Kunder list / Profile", "issues": ["User name is not shown in the admin users list rows or on the Profile card (only company/email) – consider showing it.", "Profile 'Redigera uppgifter' subtitle doesn't mention namn."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter15_name_credits_estimate.py", "/app/test_reports/pytest/pytest_iter15.xml"],
+  "action_items": [
+    "Strip-then-validate name on register (reject whitespace-only); strip name in admin PUT.",
+    "account/edit.tsx: sync form state when user loads (useEffect) to fix empty form on web refresh/deep link.",
+    "Optional: show name in admin users list + include name in admin users search; show name on Profile card.",
+    "Older regression tests (test_iter10..14, test_blaklader_api etc.) register customers without 'name' and will now fail with 422 – add name to their payloads."
+  ],
+  "critical_code_review_comments": [
+    "credits.py estimate: uses customer_city_filter so hidden products count 0 – consistent with order rules; returns only credit total – OK.",
+    "cart.tsx: queryKey includes part_no:qty, placeholderData keeps old value during refetch – no flicker; estimate only fetched when credits enabled.",
+    "index.tsx: hero alignItems center + textAlign center; store pill text align start but pill itself centered – visually fine."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter15_name_credits_estimate.py"],
+  "success_rate": {"backend": "100% (14/14, 1 skipped)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Pytest creates TEST_T15 users (cleaned in teardown). UI test registered test+t15ui1@example.com (TEST_T15UI Bygg, Borås), toggled credits via admin API; deleted afterwards. No orders created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/test_iter15_name_credits_estimate.py -n 0. Product 44062513 (price 1899, colour 8953, size S) is handy for cart credit checks. Navigate to /account/edit via Profile > edit-profile-row, not via page.goto (form empty on cold load)."
+}

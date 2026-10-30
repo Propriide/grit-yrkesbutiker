@@ -76,6 +76,7 @@ export type User = {
   id: string;
   email: string;
   role: "admin" | "customer";
+  name?: string;
   phone: string;
   company: string;
   org_number: string;

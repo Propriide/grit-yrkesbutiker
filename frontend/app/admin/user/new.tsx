@@ -21,7 +21,7 @@ export default function AdminCreateUser() {
   const toast = useToast();
   const qc = useQueryClient();
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities") });
-  const [f, setF] = useState({ email: "", password: "", phone: "", company: "", org_number: "", city_id: null as string | null, admin: false });
+  const [f, setF] = useState({ name: "", email: "", password: "", phone: "", company: "", org_number: "", city_id: null as string | null, admin: false });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const set = (k: keyof typeof f) => (v: any) => setF((p) => ({ ...p, [k]: v }));
@@ -56,6 +56,7 @@ export default function AdminCreateUser() {
         <Field label="E-post" testID="new-user-email-input" value={f.email} onChangeText={set("email")} autoCapitalize="none" keyboardType="email-address" placeholder="namn@foretag.se" />
         <Field label="Lösenord" testID="new-user-password-input" value={f.password} onChangeText={set("password")} secureTextEntry placeholder="Minst 6 tecken" />
         <Field label="Telefonnummer" optional testID="new-user-phone-input" value={f.phone} onChangeText={set("phone")} keyboardType="phone-pad" />
+        <Field label="Namn" optional testID="new-user-name-input" value={f.name} onChangeText={set("name")} />
         <CompanyInput value={f.company} onChange={set("company")} testID="new-user-company-input" />
         <Field label="Organisationsnummer" optional testID="new-user-orgnr-input" value={f.org_number} onChangeText={set("org_number")} />
         <CityPicker cities={cities.data ?? []} value={f.city_id} onChange={set("city_id")} testID="new-user-city-picker" allowNone />

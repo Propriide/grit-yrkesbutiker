@@ -23,6 +23,7 @@ class SettingsIn(BaseModel):
 class UserUpdate(BaseModel):
     phone: Optional[str] = None
     company: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=120)
     org_number: Optional[str] = None
     city_id: Optional[str] = None
     disabled: Optional[bool] = None
@@ -119,6 +120,7 @@ class AdminUserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=72)
     phone: str = Field(default="", max_length=40)
+    name: str = Field(default="", max_length=120)
     company: str = Field(min_length=1, max_length=200)
     org_number: Optional[str] = ""
     city_id: Optional[str] = None
@@ -136,7 +138,7 @@ async def admin_create_user(body: AdminUserCreate, _: dict = Depends(admin_only)
         raise HTTPException(400, "Ogiltig ort")
     user = {
         "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
-        "phone": body.phone.strip(), "company": await canonical_company(body.company), "org_number": (body.org_number or "").strip(),
+        "name": body.name.strip(), "phone": body.phone.strip(), "company": await canonical_company(body.company), "org_number": (body.org_number or "").strip(),
         "city_id": body.city_id or None, "role": body.role, "disabled": False, "created_at": now_iso(),
     }
     user["credits_enabled"] = await company_credits_default(user["company"])
@@ -149,7 +151,7 @@ async def admin_users(q: str = "", _: dict = Depends(admin_only)):
     flt: dict = {}
     if q.strip():
         rx = {"$regex": re.escape(q.strip()), "$options": "i"}
-        flt["$or"] = [{"email": rx}, {"company": rx}]
+        flt["$or"] = [{"email": rx}, {"company": rx}, {"name": rx}]
     users = await db.users.find(flt, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
     return [await public_user(u) for u in users]
 
@@ -174,6 +176,8 @@ async def admin_update_user(user_id: str, body: UserUpdate, admin: dict = Depend
         raise HTTPException(400, "Ogiltig ort")
     if upd.get("city_id") == "":
         upd["city_id"] = None
+    if "name" in upd:
+        upd["name"] = upd["name"].strip()
     if "company" in upd:
         upd["company"] = await canonical_company(upd["company"])
         if not upd["company"]:

@@ -6,7 +6,7 @@ from html import escape
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from core import canonical_company, company_credits_default, current_user, db, hash_pw, logger, make_token, now_iso, public_user, verify_pw
 from emailer import EMAIL_FROM_NAME, send_email
@@ -19,6 +19,14 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=6)
     phone: str = Field(min_length=5)
     company: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Ange ditt namn")
+        return v.strip()
     org_number: Optional[str] = None
     city_id: Optional[str] = None
 
@@ -39,7 +47,7 @@ async def register(body: RegisterIn):
         raise HTTPException(400, "Välj ort")
     user = {
         "id": str(uuid.uuid4()), "email": email, "password_hash": hash_pw(body.password),
-        "phone": body.phone.strip(), "company": await canonical_company(body.company),
+        "name": body.name.strip(), "phone": body.phone.strip(), "company": await canonical_company(body.company),
         "org_number": (body.org_number or "").strip(), "city_id": body.city_id,
         "role": "customer", "disabled": False, "created_at": now_iso(),
     }
@@ -80,6 +88,7 @@ async def me(user: dict = Depends(current_user)):
 class ProfileUpdate(BaseModel):
     phone: str = Field(min_length=5, max_length=40)
     company: str = Field(min_length=1, max_length=200)
+    name: str = Field(default="", max_length=120)
     org_number: Optional[str] = Field(default="", max_length=40)
     city_id: Optional[str] = None
 
@@ -108,7 +117,7 @@ MAX_RESET_ATTEMPTS = 5
 async def update_me(body: ProfileUpdate, user: dict = Depends(current_user)):
     if body.city_id and not await db.cities.find_one({"id": body.city_id}):
         raise HTTPException(400, "Ogiltig ort")
-    upd = {"phone": body.phone.strip(), "company": await canonical_company(body.company),
+    upd = {"name": body.name.strip(), "phone": body.phone.strip(), "company": await canonical_company(body.company),
            "org_number": (body.org_number or "").strip(), "city_id": body.city_id or None}
     await db.users.update_one({"id": user["id"]}, {"$set": upd})
     return await public_user({**user, **upd})

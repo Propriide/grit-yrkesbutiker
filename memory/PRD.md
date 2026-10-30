@@ -86,3 +86,9 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Credits badge compact (icon + number), shop title row no longer overflows.
 - Shipping: recipient, address, postal code, city all required. Saved addresses can be removed (POST /api/addresses/remove).
 - Confirm message optional (default "Din order är bekräftad."), decline still requires a reason (app + email form).
+
+## Iteration 15 (fork 2, part 2)
+- Users have `name` (required at registration, editable in profile/admin; admin search matches name).
+- Start page: "Välkommen <namn>", store pill "Du handlar nu från butiken i <ort>", centered layout. Registration has "Din butik" section with city picker.
+- Cart: credits estimate (POST /api/credits/estimate, only credit total returned) + tap product to open product page.
+- Note: older backend test files register without `name` and will now get 422.

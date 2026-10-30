@@ -18,7 +18,7 @@ export default function Register() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities") });
-  const [f, setF] = useState({ email: "", password: "", phone: "", company: "", org_number: "", city_id: null as string | null });
+  const [f, setF] = useState({ name: "", email: "", password: "", phone: "", company: "", org_number: "", city_id: null as string | null });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,6 +30,7 @@ export default function Register() {
 
   const submit = async () => {
     const e: Record<string, string> = {};
+    if (!f.name.trim()) e.name = "Ange ditt namn";
     if (!EMAIL_RX.test(f.email.trim())) e.email = "Ange en giltig e-postadress";
     if (f.password.length < 6) e.password = "Minst 6 tecken";
     if (f.phone.trim().length < 5) e.phone = "Ange telefonnummer";
@@ -59,12 +60,15 @@ export default function Register() {
       <KeyboardAwareScrollView bottomOffset={100} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {!!error && <ErrorBanner message={error} testID="register-error" />}
         <Text style={styles.section}>Kontouppgifter</Text>
+        <Field label="Ditt namn" testID="register-name-input" value={f.name} onChangeText={set("name")} error={errors.name} autoComplete="name" placeholder="För- och efternamn" />
         <Field label="E-post" testID="register-email-input" value={f.email} onChangeText={set("email")} error={errors.email} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="namn@foretag.se" />
         <Field label="Lösenord" testID="register-password-input" value={f.password} onChangeText={set("password")} error={errors.password} secureTextEntry placeholder="Minst 6 tecken" />
         <Field label="Telefonnummer" testID="register-phone-input" value={f.phone} onChangeText={set("phone")} error={errors.phone} keyboardType="phone-pad" placeholder="070-123 45 67" />
         <Text style={styles.section}>Företag</Text>
         <Field label="Företag" testID="register-company-input" value={f.company} onChangeText={set("company")} error={errors.company} placeholder="Företagets namn" />
         <Field label="Organisationsnummer" optional testID="register-orgnr-input" value={f.org_number} onChangeText={set("org_number")} keyboardType="numbers-and-punctuation" placeholder="556677-8899" />
+        <Text style={styles.section}>Din butik</Text>
+        <Text style={styles.help}>Välj vilken ort du tillhör – där handlar du och hämtar dina ordrar.</Text>
         <CityPicker cities={cities.data ?? []} value={f.city_id} onChange={set("city_id")} testID="register-city-picker" />
         {!!errors.city && <Text style={styles.err}>{errors.city}</Text>}
       </KeyboardAwareScrollView>
@@ -82,5 +86,6 @@ const useStyles = makeStyles((c) => ({
   content: { padding: spacing.xl, paddingBottom: spacing.xxl },
   section: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: spacing.md, marginTop: spacing.sm },
   err: { color: c.error, fontFamily: fonts.body, fontSize: 12, marginTop: -spacing.sm },
+  help: { color: c.muted, fontFamily: fonts.body, fontSize: 13, marginBottom: spacing.md },
   footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.divider },
 }));

@@ -18,6 +18,7 @@ export function UserRow({ user, onPress }: { user: User; onPress: () => void }) 
           {user.disabled && <Text style={styles.tagDisabled}>SPÄRRAD</Text>}
         </View>
         <Text style={styles.email} numberOfLines={1}>
+          {user.name ? `${user.name} · ` : ""}
           {user.email}
         </Text>
         <Text style={styles.meta}>

@@ -39,22 +39,29 @@ export default function HomeScreen() {
     >
       <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginBottom: spacing.md }}>
         <CreditsBadge />
-          <NotificationBell />
+        <NotificationBell />
       </View>
       <Animated.View entering={FadeInDown.duration(350)} style={styles.logoCard}>
         <Image testID="home-logo" source={require("../../assets/images/yp-logo.png")} style={styles.logo} contentFit="contain" />
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(80).duration(350)}>
-        {h?.city_name ? (
-          <Text style={styles.store} testID="home-store-name">
-            {h.city_name}
-          </Text>
-        ) : null}
-        <Text style={styles.title} testID="home-title">
-          {h?.title ?? " "}
+      <Animated.View entering={FadeInDown.delay(80).duration(350)} style={styles.hero}>
+        <Text style={styles.welcome} testID="home-welcome">
+          Välkommen {user?.name || user?.company}
         </Text>
-        <Text style={styles.greeting}>Inloggad som {user?.company}</Text>
+        {h?.city_name ? (
+          <View style={styles.storePill} testID="home-store-name">
+            <Icon name="storefront-outline" size={16} color={colors.brandSecondary} />
+            <Text style={styles.storeText}>
+              Du handlar nu från butiken i <Text style={styles.storeCity}>{h.city_name}</Text>
+            </Text>
+          </View>
+        ) : null}
+        {!!h?.title && (
+          <Text style={styles.title} testID="home-title">
+            {h.title}
+          </Text>
+        )}
         {!!h?.text && (
           <Text style={styles.text} testID="home-text">
             {h.text}
@@ -150,12 +157,15 @@ function InfoRow({ icon, text, onPress, testID, last }: { icon: IconName; text: 
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
-  logoCard: { backgroundColor: "#FFFFFF", borderRadius: radius.lg, padding: spacing.lg, alignItems: "center", marginBottom: spacing.xl },
-  logo: { width: "100%", height: 150 },
-  store: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase" },
-  title: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 34, lineHeight: 38, textTransform: "uppercase", marginTop: spacing.xs },
-  greeting: { color: c.muted, fontFamily: fonts.body, fontSize: 13, marginTop: spacing.xs },
-  text: { color: c.onSurfaceSecondary, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, marginTop: spacing.lg },
+  logoCard: { backgroundColor: "#FFFFFF", borderRadius: radius.lg, paddingVertical: spacing.lg, paddingHorizontal: spacing.xl, alignItems: "center", marginBottom: spacing.xl },
+  logo: { width: "100%", height: 130 },
+  hero: { alignItems: "center" },
+  welcome: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 32, lineHeight: 36, textTransform: "uppercase", textAlign: "center" },
+  storePill: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border },
+  storeText: { color: c.onSurfaceSecondary, fontFamily: fonts.body, fontSize: 14, flexShrink: 1, textAlign: "center" },
+  storeCity: { color: c.onSurface, fontFamily: fonts.bodyBold },
+  title: { color: c.brandSecondary, fontFamily: fonts.display, fontSize: 20, lineHeight: 24, letterSpacing: 1, textTransform: "uppercase", textAlign: "center", marginTop: spacing.xl },
+  text: { color: c.onSurfaceSecondary, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, marginTop: spacing.sm, textAlign: "center" },
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, paddingHorizontal: spacing.lg, marginTop: spacing.xl },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md, minHeight: 48, borderBottomWidth: 1, borderBottomColor: c.divider },
   infoText: { color: c.onSurface, fontFamily: fonts.body, fontSize: 15, flex: 1, lineHeight: 21 },

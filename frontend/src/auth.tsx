@@ -5,6 +5,7 @@ import { queryClient } from "@/src/query-client";
 import { storage } from "@/src/utils/storage";
 
 type RegisterData = {
+  name: string;
   email: string;
   password: string;
   phone: string;

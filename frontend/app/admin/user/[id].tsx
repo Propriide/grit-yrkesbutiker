@@ -26,7 +26,7 @@ export default function AdminUserDetail() {
   const q = useQuery({ queryKey: ["admin-user", id], queryFn: () => api<User>(`/admin/users/${id}`) });
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities") });
   const orders = useQuery({ queryKey: ["admin-user-orders", id], queryFn: () => api<Order[]>(`/admin/users/${id}/orders`) });
-  const [f, setF] = useState({ company: "", phone: "", org_number: "", city_id: null as string | null, disabled: false, role: "customer" });
+  const [f, setF] = useState({ name: "", company: "", phone: "", org_number: "", city_id: null as string | null, disabled: false, role: "customer" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -94,7 +94,7 @@ export default function AdminUserDetail() {
   useEffect(() => {
     if (q.data) {
       const u = q.data;
-      setF({ company: u.company, phone: u.phone, org_number: u.org_number, city_id: u.city_id, disabled: u.disabled, role: u.role });
+      setF({ name: u.name ?? "", company: u.company, phone: u.phone, org_number: u.org_number, city_id: u.city_id, disabled: u.disabled, role: u.role });
     }
   }, [q.data]);
 
@@ -152,6 +152,7 @@ export default function AdminUserDetail() {
               <Text style={styles.companyLinkText}>Visa alla på {q.data.company} ›</Text>
             </Pressable>
           )}
+          <Field label="Namn" testID="user-name-input" value={f.name} onChangeText={set("name")} />
           <CompanyInput value={f.company} onChange={set("company")} testID="user-company-input" />
           <Field label="Organisationsnummer" optional testID="user-orgnr-input" value={f.org_number} onChangeText={set("org_number")} />
           <Field label="Telefon" testID="user-phone-input" value={f.phone} onChangeText={set("phone")} keyboardType="phone-pad" />

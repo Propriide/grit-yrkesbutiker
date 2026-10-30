@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +20,7 @@ export default function EditProfile() {
   const { user, refresh } = useAuth();
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities") });
   const [f, setF] = useState({
+    name: user?.name ?? "",
     company: user?.company ?? "",
     phone: user?.phone ?? "",
     org_number: user?.org_number ?? "",
@@ -28,8 +29,12 @@ export default function EditProfile() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const set = (k: keyof typeof f) => (v: any) => setF((p) => ({ ...p, [k]: v }));
+  useEffect(() => {
+    if (user) setF({ name: user.name ?? "", company: user.company ?? "", phone: user.phone ?? "", org_number: user.org_number ?? "", city_id: user.city_id ?? null });
+  }, [user]);
 
   const save = async () => {
+    if (!f.name.trim()) return setError("Ange ditt namn.");
     if (!f.company.trim()) return setError("Företag är obligatoriskt.");
     if (f.phone.trim().length < 5) return setError("Ange telefonnummer.");
     setLoading(true);
@@ -55,6 +60,7 @@ export default function EditProfile() {
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing.xl }}>
         {!!error && <ErrorBanner message={error} testID="edit-profile-error" />}
         <Text style={styles.help}>E-postadressen används för inloggning och kan ändras av administratören.</Text>
+        <Field label="Ditt namn" testID="edit-name-input" value={f.name} onChangeText={set("name")} />
         <Field label="Företag" testID="edit-company-input" value={f.company} onChangeText={set("company")} />
         <Field label="Telefonnummer" testID="edit-phone-input" value={f.phone} onChangeText={set("phone")} keyboardType="phone-pad" />
         <Field label="Organisationsnummer" optional testID="edit-orgnr-input" value={f.org_number} onChangeText={set("org_number")} />

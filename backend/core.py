@@ -61,7 +61,7 @@ async def city_name(city_id: Optional[str]) -> Optional[str]:
 
 async def public_user(u: dict) -> dict:
     return {
-        "id": u["id"], "email": u["email"], "role": u["role"], "phone": u.get("phone", ""),
+        "id": u["id"], "email": u["email"], "role": u["role"], "name": u.get("name") or "", "phone": u.get("phone", ""),
         "company": u.get("company", ""), "org_number": u.get("org_number") or "",
         "city_id": u.get("city_id"), "city_name": await city_name(u.get("city_id")),
         "disabled": u.get("disabled", False), "created_at": u.get("created_at"),
