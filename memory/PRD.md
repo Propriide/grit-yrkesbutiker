@@ -103,3 +103,16 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Frontend: expo-notifications plugin, module-scope handler/channel, tap handlers + weekly denied nudge in app/_layout.tsx; src/push.ts registers on login/app open.
 - google-services.json + GoogleService-Info.plist in frontend root (package/bundle se.yp.yrkesbutiker).
 - App name "Grit" (app.json name; src/brand.ts APP_NAME used on login). Icon/adaptive/splash/favicon generated from YP logo on white.
+
+## Iteration 18 (fork 2) – PWA + Web Push
+- PWA: frontend/public/{index.html (manifest, apple meta, viewport-fit=cover), manifest.json, sw.js (network-first HTML, no /api caching, skipWaiting+claim → auto update, push + notificationclick), icons/}. SW registered in app/_layout (src/webpush.ts), reload on controllerchange, update check on foreground.
+- Web Push (VAPID, pywebpush): backend routes/webpush.py (/api/webpush/public-key, /subscribe, /unsubscribe, /notification-prefs GET/PUT); keys in backend/.env (VAPID_*). push_safe sends native + web push, filtered by user prefs (orders/offers).
+- Notification settings screen /account/notifications (prefs + enable on this device; iOS shows "add to home screen" hint).
+- Broadcast can target selected companies (companies list) in addition to city.
+- Hosting: frontend/netlify.toml (expo export web → dist, SPA redirect, no-cache sw). Emergent deploy does NOT host Expo web.
+
+## Iteration 18 (refactor, no behavior change)
+- Moved email/reply-page HTML templates from routes/orders.py to backend/order_emails.py
+- Moved notification endpoints to backend/routes/notifications.py (registered in server.py)
+- Regression tests: tests/test_iter18_refactor_regression.py, tests/test_iter18_order_emails_equivalence.py (HTML identical to before)
+- Note: Emergent mobile deployment does not host a public web frontend; PWA install link needs a web deployment (Full Stack web agent). Native push needs EMERGENT_PUSH_KEY (set at publish) + native build.

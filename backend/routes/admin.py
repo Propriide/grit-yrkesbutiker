@@ -46,6 +46,7 @@ class BroadcastIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     body: str = Field(min_length=1, max_length=2000)
     city_id: Optional[str] = None
+    companies: list[str] = Field(default_factory=list, max_length=200)
 
 
 class VisibilityIn(BaseModel):
@@ -230,11 +231,14 @@ async def admin_broadcast(body: BroadcastIn, admin: dict = Depends(admin_only)):
         if not await db.cities.find_one({"id": body.city_id}):
             raise HTTPException(400, "Ogiltig ort")
         flt["city_id"] = body.city_id
+    companies = [c for c in (" ".join(x.split()) for x in body.companies) if c]
+    if companies:
+        flt["$or"] = [{"company": _company_rx(c)} for c in companies]
     ids = [u["id"] async for u in db.users.find(flt, {"_id": 0, "id": 1})]
     for uid in ids:
         await notify(uid, None, "broadcast", title, text, limit=2000, push=False)
-    asyncio.create_task(push_safe(ids, title, text, "/notifications"))
-    rec = {"id": str(uuid.uuid4()), "title": title, "body": text, "city_id": body.city_id or None,
+    asyncio.create_task(push_safe(ids, title, text, "/notifications", "offers"))
+    rec = {"id": str(uuid.uuid4()), "title": title, "body": text, "city_id": body.city_id or None, "companies": companies,
            "recipients": len(ids), "by": admin["email"], "created_at": now_iso()}
     await db.broadcasts.insert_one(dict(rec))
     return rec

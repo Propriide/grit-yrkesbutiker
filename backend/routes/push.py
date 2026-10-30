@@ -63,8 +63,14 @@ async def send_push(recipients: list[str], data: dict, idempotency_key: str | No
     resp.raise_for_status()
 
 
-async def push_safe(recipients: list[str], title: str, message: str, action_url: str | None = None):
-    """Fire-and-forget wrapper: push failure never blocks the order/notification flow."""
+async def push_safe(recipients: list[str], title: str, message: str, action_url: str | None = None, category: str = "orders"):
+    """Fire-and-forget: native push (apps) + web push (installed PWA). Respects the users' notification choices
+    and never blocks the order/notification flow."""
+    from routes.webpush import allowed_recipients, send_webpush
+    try:
+        recipients = await allowed_recipients(recipients, category)
+    except Exception as e:
+        logger.warning(f"Pref lookup failed: {e}")
     data = {"title": title, "message": message[:500]}
     if action_url:
         data["action_url"] = action_url
@@ -73,3 +79,7 @@ async def push_safe(recipients: list[str], title: str, message: str, action_url:
             await send_push(recipients[i:i + 100], data)
         except Exception as e:
             logger.warning(f"Push failed (non-blocking): {e}")
+    try:
+        await send_webpush(recipients, title, message, action_url or "/")
+    except Exception as e:
+        logger.warning(f"Web push failed (non-blocking): {e}")

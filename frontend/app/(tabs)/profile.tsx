@@ -53,6 +53,7 @@ export default function Profile() {
         <View style={[styles.list, { marginTop: spacing.lg }]}>
           <Row icon="package-variant-closed" title="Mina ordrar" sub="Beställningar och svar från butiken" testID="my-orders-row" onPress={() => router.push("/orders")} />
           <Row icon="heart" title="Mina favoriter" sub="Sparade plagg för snabb beställning" testID="my-favorites-row" onPress={() => router.push("/favorites")} />
+          <Row icon="bell-cog-outline" title="Notiser" sub="Välj orderbesked och erbjudanden" testID="notification-settings-row" onPress={() => router.push("/account/notifications")} />
           <Row icon="account-edit" title="Redigera uppgifter" sub="Namn, företag, telefon, org.nr och ort" testID="edit-profile-row" onPress={() => router.push("/account/edit")} />
           <Row icon="lock-reset" title="Byt lösenord" sub="Ändra ditt lösenord" testID="change-password-row" onPress={() => router.push("/account/password")} last />
         </View>

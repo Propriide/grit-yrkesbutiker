@@ -2,10 +2,15 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
 import { api } from "@/src/api";
+import { subscribeWebPush, webPushPermission } from "@/src/webpush";
 
 /** Ask for permission (only once the user is logged in) and register the native device token. Re-run on every app open. */
 export async function registerForPush(userId: string) {
-  if (Platform.OS === "web") return;
+  if (Platform.OS === "web") {
+    // Web/PWA: silently refresh an existing permission; asking requires a tap (Notiser screen).
+    if (webPushPermission() === "granted") subscribeWebPush(false).catch(() => {});
+    return;
+  }
   try {
     const current = await Notifications.getPermissionsAsync();
     let status = current.status;

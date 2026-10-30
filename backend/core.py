@@ -121,7 +121,8 @@ async def notify(user_id: str, order: Optional[dict], kind: str, title: str, bod
         "created_at": now_iso()})
     if push:
         from routes.push import push_safe  # local import: routes.push imports core
-        asyncio.create_task(push_safe([user_id], title, body, f"/order/{order['id']}" if order else "/notifications"))
+        asyncio.create_task(push_safe([user_id], title, body, f"/order/{order['id']}" if order else "/notifications",
+                                      "offers" if kind == "broadcast" else "orders"))
 
 
 def customer_city_filter(user: dict) -> dict:

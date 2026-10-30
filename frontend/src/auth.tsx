@@ -4,6 +4,7 @@ import { api, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
 import { queryClient } from "@/src/query-client";
 import { registerForPush } from "@/src/push";
 import { storage } from "@/src/utils/storage";
+import { unsubscribeWebPush } from "@/src/webpush";
 
 type RegisterData = {
   name: string;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(async () => {
+    await unsubscribeWebPush().catch(() => {});
     await storage.secureRemove(TOKEN_KEY);
     queryClient.clear();
     setUser(null);

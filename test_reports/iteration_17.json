@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 17 (PWA + Web Push + notification prefs + company-targeted broadcasts): ALL requested features PASS. Backend 16/16 (test_iter17_webpush_prefs_broadcast.py): manifest.json (short_name Grit, display standalone, 192/512 + maskable icons all 200 image/png), sw.js 200 application/javascript with no-store cache headers (good for auto-update), apple-touch-icon 200, index.html has rel=manifest, apple-mobile-web-app-capable, viewport-fit=cover. GET /webpush/public-key = valid 65-byte P-256 key; subscribe 401 unauth, 400 for http://, 422 missing keys, upsert by endpoint (1 doc, keys updated), unsubscribe by other user is a no-op, owner unsubscribe removes. notification-prefs 401 unauth, default {orders:true, offers:true}, PUT persists (API + DB). allowed_recipients unit test filters per category correctly. Broadcast: 403 for customer; companies=[A] -> exactly 2 recipients (only A's customers receive notification, B not); case/whitespace-insensitive company match; companies+city_id intersect correctly; admins excluded; unknown company -> 0; history has no _id. send_webpush with real VAPID to a 410 endpoint deletes the subscription. Frontend (375x667): login OK, service worker registered + controlling page (scope /), Profil -> notification-settings-row -> /account/notifications; pref-offers-switch off persists after reload (restored afterwards); in headless Chromium permission is 'denied' -> blocked-hint shown (correct); with permission stubbed 'granted' webpush-toggle-button renders (309x52) and is tappable, but actual subscription can't complete in headless/incognito Chrome (Chrome: 'Push API not supported in incognito') - environment limitation, not app bug; iOS Safari UA -> install-hint shown. Admin broadcast: 6 company chips rendered with broadcast-company-<key> testIDs, toggle on/off changes style + 'Skickas bara till N valda företag', send -> toast 'Skickat till 1 användare', fields cleared, history updated. Regression smoke: shop (gender picker -> all, search 'jacka' 178 artiklar), cart, orders, deep link /account/notifications through SW all fine, no page errors. No deprecated Expo packages (expo-av/barcode-scanner/background-fetch not used). All test users/subs/broadcasts/notifications cleaned up.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/webpush/subscribe", "issue": "Upsert by endpoint silently reassigns an existing endpoint to whichever user posts it (fine for device handover, but means any authed user who knows an endpoint could claim it). Low risk since endpoints are unguessable."},
+      {"endpoint": "DELETE /api/admin/users/{id}", "issue": "Does not delete the user's webpush_subs (orphan docs; harmless since sends are keyed by user_id)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "admin/broadcast.tsx history card", "issue": "Company-targeted broadcasts show 'Alla användare · N mottagare' because cityName(null) returns 'Alla användare' and the stored `companies` array is never displayed. Misleading - show the targeted companies (and only say 'Alla' when no city and no companies).", "testID": "broadcast-<id>", "priority": "MEDIUM"},
+      {"component": "src/auth.tsx logout", "issue": "Logout does not call unsubscribeWebPush(), so after logging out the device's web push subscription stays bound to the old user and keeps receiving their order/offer pushes (shared B2B devices). It is only reassigned if another user logs in on that device.", "testID": "logout-button", "priority": "MEDIUM"},
+      {"component": "admin/broadcast.tsx company chips", "issue": "Chip list (GET /admin/companies) includes admin-only companies ('Admin', 'YP') - selecting them always yields 0 recipients since admins are excluded. Consider filtering to companies with customers.", "testID": "broadcast-company-admin", "priority": "LOW"},
+      {"component": "admin/broadcast.tsx", "issue": "Picked companies (and city) are kept after a successful send while title/body are cleared - next broadcast may unintentionally stay targeted. Either reset or make it deliberate.", "testID": "broadcast-companies", "priority": "LOW"},
+      {"component": "account/notifications.tsx toggleDevice", "issue": "On subscribe failure the toast shows the raw browser error message (English, e.g. 'Registration failed - push service error'). Use a Swedish fallback text.", "testID": "webpush-toggle-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Skicka utskick", "issues": ["Company chips minHeight 40px (< 44px touch target)"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter17_webpush_prefs_broadcast.py", "/app/test_reports/pytest/pytest_iter17.xml"],
+  "action_items": [
+    "broadcast.tsx: show targeted companies in history cards (b.companies) instead of 'Alla användare' when companies were picked",
+    "auth.tsx logout: call unsubscribeWebPush() (best effort, before removing token) so a logged-out device stops receiving the previous user's pushes",
+    "Optional: filter admin-only companies out of broadcast chips; bump chip minHeight to 44; Swedish fallback toast for web push subscribe errors",
+    "Optional sw.js: only cache navigation responses when res.ok (avoid caching a 5xx page as the offline shell)"
+  ],
+  "critical_code_review_comments": [
+    "sw.js navigate handler caches any response as '/' (even non-OK). Add `if (res.ok)` guard.",
+    "subscribeWebPush awaits navigator.serviceWorker.ready which never resolves if SW registration failed -> button spinner would hang forever; consider a timeout.",
+    "VAPID_SUBJECT has a default 'mailto:admin@example.com' and VAPID keys default '' (silently disables web push) - acceptable but fail-fast config preferred per guidelines.",
+    "push_safe/allowed_recipients/notify categories wired correctly: broadcast -> 'offers', all other notify kinds -> 'orders'."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter17_webpush_prefs_broadcast.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% of requested flows (real push subscription not verifiable in headless Chrome)"},
+  "seed_data_creation": "Temporary TEST_ users (TEST_CoA/TEST_CoB, TEST UI Bolag), subs, broadcasts and notifications were created and deleted. delivered@resend.dev prefs restored to {orders:true, offers:true}.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Headless Chromium reports Notification.permission 'denied' even with grant_permissions; stub via add_init_script to render webpush-toggle-button. Push subscribe fails in incognito Chrome by design. Shop tab shows a gender picker first (gender-pick-all). In-process async tests must reuse one event loop (motor binds to first loop). Test file registers users with phone/company/name/city_id.",
+  "rca_of_issue": ""
+}

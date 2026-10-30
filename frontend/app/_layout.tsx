@@ -16,6 +16,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { colors } from "@/src/theme";
 import { ToastProvider } from "@/src/toast";
+import { registerServiceWorker } from "@/src/webpush";
 
 LogBox.ignoreAllLogs(true);
 
@@ -26,8 +27,9 @@ if (Platform.OS !== "web") {
   });
 }
 if (Platform.OS === "android") {
-  Notifications.setNotificationChannelAsync("default", { name: "Default", importance: Notifications.AndroidImportance.MAX, sound: "default" });
+  Notifications.setNotificationChannelAsync("default", { name: "Default", importance: 7 /* AndroidImportance.MAX */, sound: "default" });
 }
+registerServiceWorker();
 
 function usePushTaps() {
   const router = useRouter();
