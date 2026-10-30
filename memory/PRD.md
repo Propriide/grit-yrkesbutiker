@@ -96,3 +96,4 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 ## Iteration 16 (fork 2)
 - Admin card label "Dold i Borås, Göteborg"; admin-only HiddenFilter in Sortiment (GET /api/products?hidden_in=any|<city_id>).
 - Cart: change size via SizeSheet (sizes from product), merges identical lines.
+- App identifiers: iOS bundleIdentifier & Android package = se.yp.yrkesbutiker (app.json)

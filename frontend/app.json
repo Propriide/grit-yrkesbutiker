@@ -9,14 +9,14 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.workwearorder.y0x8uf"
+      "bundleIdentifier": "se.yp.yrkesbutiker"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0D1523"
       },
-      "package": "com.emergent.workwearorder.y0x8uf"
+      "package": "se.yp.yrkesbutiker"
     },
     "web": {
       "bundler": "metro",
