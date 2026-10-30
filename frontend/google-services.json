@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "545150687806",
+    "project_id": "yp-yrkesbutiker",
+    "storage_bucket": "yp-yrkesbutiker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545150687806:android:bbb0b2a55f0e0332244f6f",
+        "android_client_info": {
+          "package_name": "se.yp.yrkesbutiker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLCDW8PF2kkMx4Gkrsbi8BNtCxjivKRak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

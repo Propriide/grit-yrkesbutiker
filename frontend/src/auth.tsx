@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useState 
 
 import { api, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
 import { queryClient } from "@/src/query-client";
+import { registerForPush } from "@/src/push";
 import { storage } from "@/src/utils/storage";
 
 type RegisterData = {
@@ -59,6 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     })();
   }, [logout]);
+
+  // Register this device for push on login and on every app open (tokens rotate).
+  useEffect(() => {
+    if (user?.id) registerForPush(user.id);
+  }, [user?.id]);
 
   const handleAuth = async (res: { access_token: string; user: User }) => {
     await storage.secureSet(TOKEN_KEY, res.access_token);

@@ -7,7 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 import scraper
 from core import client, db, hash_pw, logger, now_iso
-from routes import admin, auth, catalog, credits, favorites, orders
+from routes import admin, auth, catalog, credits, favorites, orders, push
 from routes.auth import LOCKOUT_MINUTES
 
 app = FastAPI()
@@ -20,7 +20,7 @@ async def health():
 
 
 api = APIRouter(prefix="/api")
-for r in (auth.router, catalog.router, orders.router, admin.router, favorites.router, credits.router):
+for r in (auth.router, catalog.router, orders.router, admin.router, favorites.router, credits.router, push.router):
     api.include_router(r)
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=False, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

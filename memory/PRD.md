@@ -97,3 +97,9 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Admin card label "Dold i Borås, Göteborg"; admin-only HiddenFilter in Sortiment (GET /api/products?hidden_in=any|<city_id>).
 - Cart: change size via SizeSheet (sizes from product), merges identical lines.
 - App identifiers: iOS bundleIdentifier & Android package = se.yp.yrkesbutiker (app.json)
+
+## Iteration 17 (fork 2) – Push + branding
+- Emergent managed push (SuprSend relay): backend routes/push.py (/api/register-push auth-bound, send_push, push_safe); every notify() also pushes (order new/confirmed/declined/ready → /order/{id}); broadcast pushes in chunks of 100 → /notifications. EMERGENT_PUSH_KEY=placeholder (set by deployer).
+- Frontend: expo-notifications plugin, module-scope handler/channel, tap handlers + weekly denied nudge in app/_layout.tsx; src/push.ts registers on login/app open.
+- google-services.json + GoogleService-Info.plist in frontend root (package/bundle se.yp.yrkesbutiker).
+- App name "Grit" (app.json name; src/brand.ts APP_NAME used on login). Icon/adaptive/splash/favicon generated from YP logo on white.

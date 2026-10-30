@@ -6,6 +6,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { APP_NAME } from "@/src/brand";
 import { useAuth } from "@/src/auth";
 import { Button, ErrorBanner, Field, haptic } from "@/src/components/ui";
 import { fonts, makeStyles, spacing, useTheme } from "@/src/theme";
@@ -55,7 +56,7 @@ export default function Login() {
       >
         <View style={styles.brandRow}>
           <View style={styles.brandMark} />
-          <Text style={styles.brandText}>ARBETSKLÄDER · ORDER</Text>
+          <Text style={styles.brandText}>{APP_NAME.toUpperCase()}</Text>
         </View>
         <View style={{ flex: 1, minHeight: 160 }} />
         <Text style={styles.title}>Logga in</Text>

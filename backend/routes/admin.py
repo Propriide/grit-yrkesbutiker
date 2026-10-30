@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 import scraper
+from routes.push import push_safe
 from core import admin_only, canonical_company, company_credits_default, company_key, db, hash_pw, notify, now_iso, public_user
 
 router = APIRouter()
@@ -231,7 +232,8 @@ async def admin_broadcast(body: BroadcastIn, admin: dict = Depends(admin_only)):
         flt["city_id"] = body.city_id
     ids = [u["id"] async for u in db.users.find(flt, {"_id": 0, "id": 1})]
     for uid in ids:
-        await notify(uid, None, "broadcast", title, text, limit=2000)
+        await notify(uid, None, "broadcast", title, text, limit=2000, push=False)
+    asyncio.create_task(push_safe(ids, title, text, "/notifications"))
     rec = {"id": str(uuid.uuid4()), "title": title, "body": text, "city_id": body.city_id or None,
            "recipients": len(ids), "by": admin["email"], "created_at": now_iso()}
     await db.broadcasts.insert_one(dict(rec))

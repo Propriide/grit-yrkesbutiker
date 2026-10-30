@@ -1,4 +1,5 @@
 """Shared database client, auth helpers and dependencies."""
+import asyncio
 import logging
 import os
 import re
@@ -113,11 +114,14 @@ async def admin_only(user: dict = Depends(current_user)) -> dict:
     return user
 
 
-async def notify(user_id: str, order: Optional[dict], kind: str, title: str, body: str, limit: int = 300):
+async def notify(user_id: str, order: Optional[dict], kind: str, title: str, body: str, limit: int = 300, push: bool = True):
     await db.notifications.insert_one({
         "id": str(uuid.uuid4()), "user_id": user_id, "kind": kind, "order_id": order["id"] if order else None,
         "order_number": order["order_number"] if order else None, "title": title, "body": body[:limit], "read": False,
         "created_at": now_iso()})
+    if push:
+        from routes.push import push_safe  # local import: routes.push imports core
+        asyncio.create_task(push_safe([user_id], title, body, f"/order/{order['id']}" if order else "/notifications"))
 
 
 def customer_city_filter(user: dict) -> dict:

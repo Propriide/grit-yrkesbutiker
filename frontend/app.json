@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Arbetskl\u00e4der Order",
+    "name": "Grit",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,14 +9,16 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "se.yp.yrkesbutiker"
+      "bundleIdentifier": "se.yp.yrkesbutiker",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0D1523"
+        "backgroundColor": "#FFFFFF"
       },
-      "package": "se.yp.yrkesbutiker"
+      "package": "se.yp.yrkesbutiker",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +33,7 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-font",
@@ -39,7 +41,14 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar",
-      "@react-native-vector-icons/material-design-icons"
+      "@react-native-vector-icons/material-design-icons",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#D0102E"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
