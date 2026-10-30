@@ -105,8 +105,8 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
     delivery = {"method": d.method}
     if d.method == "ship":
         delivery.update(name=d.name.strip(), address=d.address.strip(), postal_code=d.postal_code.strip(), city=d.city.strip())
-        if not (delivery["address"] and delivery["postal_code"] and delivery["city"]):
-            raise HTTPException(400, "Fyll i adress, postnummer och ort för leveransen")
+        if not (delivery["name"] and delivery["address"] and delivery["postal_code"] and delivery["city"]):
+            raise HTTPException(400, "Fyll i mottagare, adress, postnummer och ort för leveransen")
     items = []
     value = 0.0
     for it in body.items:
@@ -173,6 +173,20 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
 async def my_addresses(user: dict = Depends(current_user)):
     """Delivery addresses the user shipped to before, newest first."""
     return user.get("addresses") or []
+
+
+class AddressIn(BaseModel):
+    name: str = ""
+    address: str = ""
+    postal_code: str = ""
+    city: str = ""
+
+
+@router.post("/addresses/remove")
+async def remove_address(body: AddressIn, user: dict = Depends(current_user)):
+    target = body.model_dump()
+    await db.users.update_one({"id": user["id"]}, {"$pull": {"addresses": target}})
+    return (await db.users.find_one({"id": user["id"]}, {"_id": 0, "addresses": 1})).get("addresses") or []
 
 
 @router.get("/orders")
@@ -298,7 +312,7 @@ def _reply_form(order: dict, token: str, error: str = "", message: str = "") -> 
         f'<form method="post" action="/api/order-reply/{escape(token)}" class="c">'
         '<label for="message"><strong>Svar till beställaren</strong></label>'
         '<p class="m">T.ex. "Leverans sker om 15 min" eller "Levereras torsdag v.24".</p>'
-        f'<textarea id="message" name="message" maxlength="2000" required placeholder="Skriv ditt meddelande...">{escape(message)}</textarea>'
+        f'<textarea id="message" name="message" maxlength="2000" placeholder="Valfritt vid bekräftelse – krävs vid nekande">{escape(message)}</textarea>'
         '<div style="display:flex;gap:8px"><button type="submit" name="action" value="confirm" style="flex:2">Bekräfta & skicka</button>'
         '<button type="submit" name="action" value="decline" style="flex:1;background:#2C2C2E;color:#F44336;border:1px solid #F44336">Neka</button></div></form>')
 
@@ -354,8 +368,11 @@ async def award_credits(order: dict):
 
 
 class ReplyIn(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(default="", max_length=2000)
     action: str = "confirm"
+
+
+DEFAULT_CONFIRM_MESSAGE = "Din order är bekräftad."
 
 
 @router.post("/admin/orders/{order_id}/reply")
@@ -363,11 +380,11 @@ async def admin_reply_order(order_id: str, body: ReplyIn, _: dict = Depends(admi
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(404, "Ordern hittades inte")
-    message = body.message.strip()
-    if not message:
-        raise HTTPException(400, "Skriv ett meddelande innan du skickar.")
     if body.action not in ("confirm", "decline"):
         raise HTTPException(400, "Ogiltig åtgärd")
+    message = body.message.strip() or (DEFAULT_CONFIRM_MESSAGE if body.action == "confirm" else "")
+    if not message:
+        raise HTTPException(400, "Skriv varför ordern nekas.")
     err = await send_order_reply(order, message, body.action)
     if err:
         raise HTTPException(400, err)
@@ -381,9 +398,11 @@ async def order_reply_submit(token: str, request: Request):
         return reply_page("Ordern hittades inte", '<div class="c err">Länken är ogiltig eller ordern finns inte längre.</div>')
     form = parse_qs((await request.body()).decode("utf-8", "replace"))
     message = (form.get("message", [""])[0]).strip()[:2000]
-    if not message:
-        return _reply_form(order, token, "Skriv ett meddelande innan du skickar.")
     action = "decline" if form.get("action", [""])[0] == "decline" else "confirm"
+    if not message and action == "confirm":
+        message = DEFAULT_CONFIRM_MESSAGE
+    if not message:
+        return _reply_form(order, token, "Skriv varför ordern nekas.")
     err = await send_order_reply(order, message, action)
     if err:
         return _reply_form(order, token, err, message)

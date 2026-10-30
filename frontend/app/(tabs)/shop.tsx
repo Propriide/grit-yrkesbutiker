@@ -121,10 +121,14 @@ export default function Shop() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.titleRow}>
           <View style={styles.mark} />
-          <Text style={styles.title}>Sortiment</Text>
-          <Text style={styles.count} testID="product-count">
-            {total ? `${total} artiklar` : ""}
-          </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.title, { flex: 0 }]} numberOfLines={1}>
+              Sortiment
+            </Text>
+            <Text style={styles.count} testID="product-count">
+              {total ? `${total} artiklar` : " "}
+            </Text>
+          </View>
           <FavoritesButton />
           <CreditsBadge />
           <NotificationBell />

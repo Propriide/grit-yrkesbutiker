@@ -21,17 +21,15 @@ export function CreditsBadge() {
   if (!q.data?.enabled) return null;
   return (
     <Pressable testID="credits-badge" onPress={() => router.push("/credits")} hitSlop={6} style={styles.badge}>
-      <Icon name="star-four-points" size={16} color={colors.brandSecondary} />
-      <Text style={styles.text} testID="credits-balance">
+      <Icon name="star-four-points" size={14} color={colors.brandSecondary} />
+      <Text style={styles.text} testID="credits-balance" numberOfLines={1}>
         {q.data.balance}
       </Text>
-      <Text style={styles.unit}>credits</Text>
     </Pressable>
   );
 }
 
 const useStyles = makeStyles((c) => ({
-  badge: { flexDirection: "row", alignItems: "center", gap: 4, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
-  text: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 20 },
-  unit: { color: c.onSurfaceSecondary, fontFamily: fonts.body, fontSize: 11 },
+  badge: { flexDirection: "row", alignItems: "center", gap: 4, height: 44, minWidth: 44, paddingHorizontal: spacing.sm, borderRadius: radius.md, backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary, flexShrink: 0 },
+  text: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 18 },
 }));

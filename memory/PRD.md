@@ -81,3 +81,8 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Order card layout fixed (number + badge row, date below). Reply sheet extracted (src/components/reply-sheet.tsx) and usable on order detail for admins (notification → order → confirm/decline directly).
 - Home sections collapsed by default.
 - Saved shipping addresses (users.addresses, GET /api/addresses) with dropdown in checkout.
+
+## Iteration 15 (fork 2)
+- Credits badge compact (icon + number), shop title row no longer overflows.
+- Shipping: recipient, address, postal code, city all required. Saved addresses can be removed (POST /api/addresses/remove).
+- Confirm message optional (default "Din order är bekräftad."), decline still requires a reason (app + email form).

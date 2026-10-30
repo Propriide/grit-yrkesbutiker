@@ -24,7 +24,8 @@ export function ReplySheet({ order, onClose, onDone }: { order: Order | null; on
   }, [order]);
 
   const send = async (action: "confirm" | "decline") => {
-    if (!order || !message.trim()) return setError("Skriv ett meddelande till beställaren.");
+    if (!order) return;
+    if (action === "decline" && !message.trim()) return setError("Skriv varför ordern nekas.");
     setSending(true);
     setError("");
     try {
@@ -64,7 +65,7 @@ export function ReplySheet({ order, onClose, onDone }: { order: Order | null; on
             multiline
             maxLength={2000}
             autoFocus
-            placeholder="T.ex. Leverans sker om 15 min"
+            placeholder="Valfritt vid bekräftelse, t.ex. Leverans sker om 15 min"
             placeholderTextColor={colors.muted}
             style={styles.input}
             textAlignVertical="top"

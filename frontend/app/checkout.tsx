@@ -24,6 +24,16 @@ export default function Checkout() {
   const setA = (k: keyof typeof addr) => (v: string) => setAddr((p) => ({ ...p, [k]: v }));
   const addresses = useQuery({ queryKey: ["addresses"], queryFn: () => api<Delivery[]>("/addresses") });
   const [addrOpen, setAddrOpen] = useState(false);
+  const removeAddress = async (a: Delivery) => {
+    try {
+      const left = await api<Delivery[]>("/addresses/remove", { method: "POST", body: { name: a.name ?? "", address: a.address ?? "", postal_code: a.postal_code ?? "", city: a.city ?? "" } });
+      haptic("selection");
+      qc.setQueryData(["addresses"], left);
+      if (!left.length) setAddrOpen(false);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Order | null>(null);
@@ -34,9 +44,9 @@ export default function Checkout() {
       setError("Välj hur ordern ska levereras.");
       return;
     }
-    if (method === "ship" && (!addr.address.trim() || !addr.postal_code.trim() || !addr.city.trim())) {
+    if (method === "ship" && (!addr.name.trim() || !addr.address.trim() || !addr.postal_code.trim() || !addr.city.trim())) {
       haptic("error");
-      setError("Fyll i adress, postnummer och ort för leveransen.");
+      setError("Fyll i mottagare, adress, postnummer och ort för leveransen.");
       return;
     }
     setLoading(true);
@@ -168,32 +178,36 @@ export default function Checkout() {
                     </Pressable>
                     {addrOpen &&
                       addresses.data.map((a, i) => (
-                        <Pressable
-                          key={i}
-                          testID={`saved-address-${i}`}
-                          onPress={() => {
-                            haptic("selection");
-                            setAddr({ name: a.name ?? "", address: a.address ?? "", postal_code: a.postal_code ?? "", city: a.city ?? "" });
-                            setAddrOpen(false);
-                          }}
-                          style={({ pressed }) => [styles.addrOption, pressed && { backgroundColor: colors.surfaceTertiary }]}
-                        >
-                          {!!a.name && <Text style={styles.optionTitle}>{a.name}</Text>}
-                          <Text style={styles.optionSub}>
-                            {a.address}, {a.postal_code} {a.city}
-                          </Text>
-                        </Pressable>
+                        <View key={`${a.address}-${a.postal_code}-${i}`} style={styles.addrOption}>
+                          <Pressable
+                            testID={`saved-address-${i}`}
+                            onPress={() => {
+                              haptic("selection");
+                              setAddr({ name: a.name ?? "", address: a.address ?? "", postal_code: a.postal_code ?? "", city: a.city ?? "" });
+                              setAddrOpen(false);
+                            }}
+                            style={({ pressed }) => [{ flex: 1, minHeight: 44, justifyContent: "center" }, pressed && { opacity: 0.7 }]}
+                          >
+                            {!!a.name && <Text style={styles.optionTitle}>{a.name}</Text>}
+                            <Text style={styles.optionSub}>
+                              {a.address}, {a.postal_code} {a.city}
+                            </Text>
+                          </Pressable>
+                          <Pressable testID={`saved-address-remove-${i}`} hitSlop={6} onPress={() => removeAddress(a)} style={styles.addrRemove}>
+                            <Icon name="trash-can-outline" size={22} color={colors.error} />
+                          </Pressable>
+                        </View>
                       ))}
                   </View>
                 )}
-                <Field label="Mottagare" optional testID="delivery-name-input" value={addr.name} onChangeText={setA("name")} placeholder={user?.company} />
+                <Field label="Mottagare" testID="delivery-name-input" value={addr.name} onChangeText={setA("name")} placeholder="Namn eller företag" />
                 <Field label="Adress" testID="delivery-address-input" value={addr.address} onChangeText={setA("address")} placeholder="Gata och nummer" />
                 <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" }}>
-                  <View style={{ flex: 1 }}>
-                    <Field label="Postnr" testID="delivery-postal-input" value={addr.postal_code} onChangeText={setA("postal_code")} keyboardType="number-pad" placeholder="123 45" maxLength={6} />
+                  <View style={{ flex: 1.3 }}>
+                    <Field label="Postnr" testID="delivery-postal-input" value={addr.postal_code} onChangeText={setA("postal_code")} keyboardType="number-pad" placeholder="12345" maxLength={6} style={{ paddingHorizontal: spacing.md }} />
                   </View>
                   <View style={{ flex: 2 }}>
-                    <Field label="Ort" testID="delivery-city-input" value={addr.city} onChangeText={setA("city")} placeholder="T.ex. Borås" />
+                    <Field label="Ort" testID="delivery-city-input" value={addr.city} onChangeText={setA("city")} placeholder="Ort" style={{ paddingHorizontal: spacing.md }} />
                   </View>
                 </View>
               </View>
@@ -264,7 +278,8 @@ const useStyles = makeStyles((c) => ({
   optionTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
   optionSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   addrBox: { marginTop: spacing.md, padding: spacing.lg, paddingBottom: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
-  addrOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, minHeight: 48, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: c.divider },
+  addrOption: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs, paddingLeft: spacing.lg, borderBottomWidth: 1, borderBottomColor: c.divider },
+  addrRemove: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   successIcon: { width: 96, height: 96, borderRadius: radius.lg, backgroundColor: c.success, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: spacing.xl },
   successTitle: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 36, textTransform: "uppercase", textAlign: "center" },
   successNum: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 22, textAlign: "center", marginTop: spacing.xs },

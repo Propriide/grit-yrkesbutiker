@@ -17,7 +17,7 @@ mdb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
 TAG = uuid.uuid4().hex[:6]
 
 A = {"name": "TEST_Mottagare A", "address": "Testgatan 1", "postal_code": "50330", "city": "Borås"}
-B = {"name": "", "address": "Annan väg 22", "postal_code": "41101", "city": "Göteborg"}
+B = {"name": "TEST_Mottagare B", "address": "Annan väg 22", "postal_code": "41101", "city": "Göteborg"}
 
 
 def login(email, pw):
