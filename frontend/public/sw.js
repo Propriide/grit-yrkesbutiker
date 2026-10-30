@@ -52,10 +52,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: "Grit", body: event.data ? event.data.text() : "" };
+    data = { title: "GRIT", body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Grit", {
+    self.registration.showNotification(data.title || "GRIT", {
       body: data.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-96.png",

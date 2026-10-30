@@ -116,3 +116,12 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Moved notification endpoints to backend/routes/notifications.py (registered in server.py)
 - Regression tests: tests/test_iter18_refactor_regression.py, tests/test_iter18_order_emails_equivalence.py (HTML identical to before)
 - Note: Emergent mobile deployment does not host a public web frontend; PWA install link needs a web deployment (Full Stack web agent). Native push needs EMERGENT_PUSH_KEY (set at publish) + native build.
+
+## Iteration 19 – launch prep (web PWA)
+- Renamed to GRIT (app.json, manifest, apple title, sw.js, brand.ts APP_NAME constant)
+- Web build calls backend at relative "/api" (same build works on any domain, incl. future custom domain); native still uses EXPO_PUBLIC_BACKEND_URL
+- `npx expo export -p web` verified (static PWA build OK)
+- Security probe: all 28 /api/admin/* routes return 403 for customers and 401 without login
+- Live test purchase B10089 (recipient temporarily delivered+grit-launch@resend.dev): email sent, confirmed, ready, customer notifications OK; recipient restored to prii_de@hotmail.com
+- Decision: production = new Emergent "Full Stack App" (web) deployment with clean DB; seeds admin patrik.degerstam@yp.se via SECOND_ADMIN_* env; catalog auto-scrapes on empty DB. Add custom domain to PUBLIC_HOST_SUFFIXES when connected.
+- Test data kept until user approves deletion.

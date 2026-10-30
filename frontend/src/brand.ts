@@ -1,4 +1,2 @@
-import Constants from "expo-constants";
-
-/** App display name – change "name" in app.json to rename the app everywhere. */
-export const APP_NAME = Constants.expoConfig?.name ?? "Grit";
+/** App display name (also set in app.json and public/manifest.json). */
+export const APP_NAME = "GRIT";

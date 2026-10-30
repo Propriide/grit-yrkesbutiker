@@ -1,6 +1,8 @@
+import { Platform } from "react-native";
 import { storage } from "@/src/utils/storage";
 
-const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
+// Web (PWA) talks to the backend on its own address, so the same build works on any domain.
+const BASE = Platform.OS === "web" ? "/api" : `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 export const TOKEN_KEY = "auth_token";
 
 let onUnauthorized: (() => void) | null = null;
