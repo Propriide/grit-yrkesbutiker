@@ -125,3 +125,6 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Live test purchase B10089 (recipient temporarily delivered+grit-launch@resend.dev): email sent, confirmed, ready, customer notifications OK; recipient restored to prii_de@hotmail.com
 - Decision: production = new Emergent "Full Stack App" (web) deployment with clean DB; seeds admin patrik.degerstam@yp.se via SECOND_ADMIN_* env; catalog auto-scrapes on empty DB. Add custom domain to PUBLIC_HOST_SUFFIXES when connected.
 - Test data kept until user approves deletion.
+- Admin seeds now optional per env pair (ADMIN_EMAIL/PASSWORD, SECOND_ADMIN_EMAIL/PASSWORD); production sets only SECOND_ADMIN_* (patrik).
+- /app/DEPLOY_WEB.md: instructions for the new Full Stack web job (serve expo web export, env vars, launch checklist).
+- .env files added to .gitignore so secrets are not pushed to GitHub.

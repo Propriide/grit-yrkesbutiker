@@ -80,3 +80,5 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
+# Secrets – never push to GitHub (see DEPLOY_WEB.md for the variable list)
+**/.env

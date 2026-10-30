@@ -41,9 +41,9 @@ async def startup():
     await db.favorites.create_index([("user_id", 1), ("part_no", 1), ("color_code", 1)], unique=True)
     if not await db.counters.find_one({"id": "order_number"}):
         await db.counters.insert_one({"id": "order_number", "seq": await db.orders.count_documents({})})
-    seeds = [(os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"])]
-    if os.environ.get("SECOND_ADMIN_EMAIL") and os.environ.get("SECOND_ADMIN_PASSWORD"):
-        seeds.append((os.environ["SECOND_ADMIN_EMAIL"], os.environ["SECOND_ADMIN_PASSWORD"]))
+    # Each admin seed is optional, so production can seed only the real admin account.
+    seeds = [(os.environ[e], os.environ[p]) for e, p in (("ADMIN_EMAIL", "ADMIN_PASSWORD"), ("SECOND_ADMIN_EMAIL", "SECOND_ADMIN_PASSWORD"))
+             if os.environ.get(e) and os.environ.get(p)]
     for raw_email, pw in seeds:
         admin_email = raw_email.strip().lower()
         # Insert only when absent; never reset an existing password on restart.
