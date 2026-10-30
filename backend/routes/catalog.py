@@ -171,11 +171,14 @@ async def filter_options(q: str = "", group: str = "", category: str = "", gende
 
 @router.get("/products")
 async def products(
-    q: str = "", group: str = "", category: str = "", filters: str = "", gender: str = "",
+    q: str = "", group: str = "", category: str = "", filters: str = "", gender: str = "", hidden_in: str = "",
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=60),
     user: dict = Depends(current_user),
 ):
     flt = _base_filter(q, group, category, filters, gender, user)
+    if hidden_in and user.get("role") == "admin":
+        # Admin view: only products hidden somewhere ("any") or in one specific store.
+        flt["hidden_city_ids"] = {"$exists": True, "$ne": []} if hidden_in == "any" else hidden_in
     total = await db.products.count_documents(flt)
     proj = {"_id": 0, "description": 0, "price": 0, "filters": 0}
     if user.get("role") != "admin":

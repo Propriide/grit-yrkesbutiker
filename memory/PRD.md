@@ -92,3 +92,7 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Start page: "Välkommen <namn>", store pill "Du handlar nu från butiken i <ort>", centered layout. Registration has "Din butik" section with city picker.
 - Cart: credits estimate (POST /api/credits/estimate, only credit total returned) + tap product to open product page.
 - Note: older backend test files register without `name` and will now get 422.
+
+## Iteration 16 (fork 2)
+- Admin card label "Dold i Borås, Göteborg"; admin-only HiddenFilter in Sortiment (GET /api/products?hidden_in=any|<city_id>).
+- Cart: change size via SizeSheet (sizes from product), merges identical lines.

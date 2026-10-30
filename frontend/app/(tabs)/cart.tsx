@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/api";
-import { useCart } from "@/src/cart";
+import { CartItem, useCart } from "@/src/cart";
+import { SizeSheet } from "@/src/components/size-sheet";
 import { Button, EmptyState, Icon, Stepper } from "@/src/components/ui";
 import { CreditsBadge, useCredits } from "@/src/components/credits-badge";
 import { NotificationBell } from "@/src/components/notification-bell";
@@ -18,6 +20,7 @@ export default function Cart() {
   const insets = useSafeAreaInsets();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const cart = useCart();
+  const [sizeFor, setSizeFor] = useState<CartItem | null>(null);
   const credits = useCredits();
   const itemsKey = cart.items.map((i) => `${i.part_no}:${i.quantity}`).join(",");
   const estimate = useQuery({
@@ -77,10 +80,13 @@ export default function Cart() {
                       {item.name} ›
                     </Text>
                   </Pressable>
-                  <Text style={styles.meta}>
-                    Storlek <Text style={styles.metaStrong}>{item.size}</Text>
-                    {item.color_name ? `  ·  ${item.color_name}` : ""}
-                  </Text>
+                  <Pressable testID={`cart-size-${item.key}`} onPress={() => setSizeFor(item)} hitSlop={6} style={styles.sizeBtn}>
+                    <Text style={styles.meta}>
+                      Storlek <Text style={styles.metaStrong}>{item.size}</Text>
+                    </Text>
+                    <Icon name="chevron-down" size={16} color={colors.brandSecondary} />
+                  </Pressable>
+                  {!!item.color_name && <Text style={styles.meta}>{item.color_name}</Text>}
                   <View style={styles.rowFoot}>
                     <Stepper compact value={item.quantity} onChange={(v) => cart.setQuantity(item.key, v)} testIDPrefix={`cart-qty-${item.key}`} />
                     <Pressable testID={`cart-remove-${item.key}`} onPress={() => cart.remove(item.key)} hitSlop={8} style={styles.remove}>
@@ -104,6 +110,7 @@ export default function Cart() {
           </View>
         </>
       )}
+      <SizeSheet item={sizeFor} onClose={() => setSizeFor(null)} />
     </View>
   );
 }
@@ -124,6 +131,7 @@ const useStyles = makeStyles((c) => ({
   name: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 14 },
   meta: { color: c.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 12 },
   metaStrong: { color: c.brandSecondary, fontFamily: fonts.bodyBold },
+  sizeBtn: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", minHeight: 32, paddingHorizontal: spacing.sm, marginLeft: -spacing.sm, borderRadius: radius.sm, backgroundColor: c.surfaceTertiary },
   rowFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
   remove: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: c.divider, backgroundColor: c.surface },

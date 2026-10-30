@@ -18,6 +18,7 @@ type CartCtx = {
   count: number;
   add: (item: Omit<CartItem, "key">) => void;
   setQuantity: (key: string, q: number) => void;
+  changeSize: (key: string, size: string) => void;
   remove: (key: string) => void;
   clear: () => void;
 };
@@ -58,6 +59,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       setQuantity: (key, q) =>
         setItems((prev) => prev.map((p) => (p.key === key ? { ...p, quantity: Math.max(1, Math.min(9999, q)) } : p))),
+      changeSize: (key, size) =>
+        setItems((prev) => {
+          const cur = prev.find((p) => p.key === key);
+          if (!cur || cur.size === size) return prev;
+          const newKey = `${cur.part_no}|${cur.color_code ?? ""}|${size}`;
+          const ex = prev.find((p) => p.key === newKey);
+          if (ex) return prev.filter((p) => p.key !== key).map((p) => (p.key === newKey ? { ...p, quantity: Math.min(9999, p.quantity + cur.quantity) } : p));
+          return prev.map((p) => (p.key === key ? { ...p, size, key: newKey } : p));
+        }),
       remove: (key) => setItems((prev) => prev.filter((p) => p.key !== key)),
       clear: () => setItems([]),
     }),

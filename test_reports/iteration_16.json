@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 16: all requested features PASS. Backend 11/11 (test_iter16_hidden_filter.py): admin hidden_in=any returns exactly the DB set of products with non-empty hidden_city_ids (4), hidden_in=<city> returns only products hidden in that city (Borås 4, Göteborg 1 = 17211645, Stockholm/Malmö 0), unknown city -> 0, works with q search, works for both admins; customers: hidden_in ignored (same total as no param, no hidden_city_ids leaked, own-city hidden never returned); unauth 401. Frontend (375x667): admin card labels 'Dold i Borås' and 'Dold i Borås, Göteborg' (17211645); hidden-filter-toggle opens hidden-filter-dropdown with all/any/4 city options (48px rows), selecting filters list + closes dropdown + hidden-filter-value updates (Dolda i någon butik / Dolda i Göteborg / Dolda i Stockholm -> empty state), 'Alla artiklar' restores 1236. Customer sees no filter and no hidden labels. Cart: cart-size-<key> opens size-sheet with all 7 product sizes (current marked), M->S changes line key/size, S->L merges into existing L line (qty 2), scrim closes without change, persisted after reload. Regression: credits estimate 56 for 3x1899 kr unchanged after size-merge; cart-item-open opens /product/44062513?color=8953. No deprecated Expo packages.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/products?hidden_in=", "issue": "Arbitrary/unknown city id is accepted and simply returns 0 items (no validation). Acceptable but could 400."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "size-sheet.tsx", "issue": "No error/empty state: if GET /products/{part_no} fails (e.g. product since hidden for the customer's city -> 404, or offline) or product has no sizes, the sheet shows only the title with an empty grid. Add q.isError / empty message.", "testID": "size-sheet", "priority": "LOW"},
+      {"component": "src/cart.tsx changeSize", "issue": "Merged quantity is not clamped to 9999 like setQuantity does (cur.quantity + ex.quantity).", "testID": "cart-size-<key>", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Sortiment (admin)", "issues": [
+        "Selected label for 'any' is 'Dolda i någon butik' while the option text is 'Alla dolda artiklar' – use the same wording.",
+        "Empty state when a city has no hidden articles says 'Prova en annan sökning, kategori eller färre filter.' – should say e.g. 'Inga dolda artiklar i Stockholm' with a 'Visa alla artiklar' action.",
+        "Header with gender toggle + search + category + hidden filter takes ~325px of 667px on small phones, leaving ~half the screen for the product grid (admin only)."
+      ]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter16_hidden_filter.py", "/app/test_reports/pytest/pytest_iter16.xml"],
+  "action_items": [
+    "LOW: size-sheet – handle error (404/offline) and empty sizes with a message.",
+    "LOW: cart changeSize – clamp merged quantity to 9999.",
+    "LOW: unify 'any' label wording and add hidden-filter specific empty state in shop.tsx.",
+    "LOW: visibility-sheet only invalidates ['products']; also invalidate ['product', part_no] so the cached product detail hidden_city_ids is fresh."
+  ],
+  "critical_code_review_comments": [
+    "IMPORTANT (fixed in test): old regression test test_iter12_delivery_credits_broadcast_visibility.py teardown ran update_many(... hidden_city_ids: []) which WIPED all admin-hidden products. It also failed 14/14 because register now requires 'name'. I ran it once, it wiped the 4 hidden products; I restored them exactly (14531847 Borås, 17211645 Borås+Göteborg, 14591142 Borås, 14591845 Borås) and changed the test to snapshot/restore hidden state + send name. Now 14/14 pass and hidden state is preserved."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter16_hidden_filter.py", "/app/backend/tests/test_iter12_delivery_credits_broadcast_visibility.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None persistent. Temporarily set credits_enabled=true on delivered@resend.dev for the estimate UI test and unset it afterwards. Hidden product state verified identical to start.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Hidden products: 14531847 (Borås), 17211645 (Borås, Göteborg), 14591142 (Borås), 14591845 (Borås). Cities: Borås b9a119ee..., Göteborg ff25e5f0..., Stockholm 9f43c638..., Malmö 036acd9d.... delivered@resend.dev is in Borås, credits disabled by default. Cart is reset on login (set cart via UI after login). Size sheet and product page both use testID size-option-<s>; scope with [data-testid=size-sheet]. Product 44062513 colour 8953 sizes XS..XXXL, price 1899.",
+  "rca_of_issue": ""
+}

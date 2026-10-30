@@ -45,6 +45,7 @@ def cities():
 def env_setup():
     old = mdb.settings.find_one({"id": "global"}, {"_id": 0}) or {}
     mdb.settings.update_one({"id": "global"}, {"$set": {"order_email": "delivered@resend.dev"}}, upsert=True)
+    hidden_snapshot = {p["part_no"]: p["hidden_city_ids"] for p in mdb.products.find({"hidden_city_ids": {"$exists": True, "$ne": []}}, {"_id": 0, "part_no": 1, "hidden_city_ids": 1})}
     yield
     mdb.settings.update_one({"id": "global"}, {"$set": {"order_email": old.get("order_email")}})
     ids = [u["id"] for u in mdb.users.find({"company": {"$regex": f"^TEST_Credit Bygg {TAG}", "$options": "i"}})]
@@ -55,12 +56,15 @@ def env_setup():
     mdb.companies.delete_many({"key": {"$regex": TAG}})
     mdb.broadcasts.delete_many({"title": {"$regex": "TEST_"}})
     mdb.notifications.delete_many({"title": {"$regex": "TEST_"}})
-    mdb.products.update_many({"hidden_city_ids": {"$exists": True, "$ne": []}}, {"$set": {"hidden_city_ids": []}})
+    # restore pre-existing visibility (do not wipe admin-hidden products)
+    mdb.products.update_many({"hidden_city_ids": {"$exists": True, "$ne": []}, "part_no": {"$nin": list(hidden_snapshot)}}, {"$set": {"hidden_city_ids": []}})
+    for pn, ids in hidden_snapshot.items():
+        mdb.products.update_one({"part_no": pn}, {"$set": {"hidden_city_ids": ids}})
 
 
 def register(cities, idx=0, company=COMPANY, n=None):
     r = requests.post(f"{API}/auth/register", json={
-        "email": f"delivered+t{TAG}{n or uuid.uuid4().hex[:4]}@resend.dev", "password": "secret12", "phone": "07011111",
+        "email": f"delivered+t{TAG}{n or uuid.uuid4().hex[:4]}@resend.dev", "password": "secret12", "phone": "07011111", "name": "TEST Namn",
         "company": company, "city_id": cities[idx]["id"]})
     assert r.status_code == 200, r.text
     d = r.json()

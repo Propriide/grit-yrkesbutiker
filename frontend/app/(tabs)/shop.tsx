@@ -6,8 +6,9 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, CategoryGroup, Product } from "@/src/api";
+import { api, CategoryGroup, City, Product } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { HiddenFilter } from "@/src/components/hidden-filter";
 import { VisibilitySheet } from "@/src/components/visibility-sheet";
 import { Button, EmptyState, haptic, Icon } from "@/src/components/ui";
 import { CategoryPicker } from "@/src/components/category-picker";
@@ -39,6 +40,9 @@ export default function Shop() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [hideFor, setHideFor] = useState<Product | null>(null);
+  const [hiddenIn, setHiddenIn] = useState("");
+  const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/cities"), enabled: isAdmin });
+  const cityNames = (ids: string[]) => ids.map((id) => cities.data?.find((c) => c.id === id)?.name ?? "okänd ort").join(", ");
 
   useEffect(() => {
     if (params.pick) setGender("unset");
@@ -63,10 +67,10 @@ export default function Shop() {
   const selColors = filters.Color ?? [];
   const cats = useQuery({ queryKey: ["categories", g], queryFn: () => api<CategoryGroup[]>(`/categories?gender=${g}`) });
   const list = useInfiniteQuery({
-    queryKey: ["products", baseQuery, filtersJson],
+    queryKey: ["products", baseQuery, filtersJson, hiddenIn],
     enabled: gender !== "unset",
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => api<Page>(`/products?page=${pageParam}&page_size=20&${baseQuery}&filters=${encodeURIComponent(filtersJson)}`),
+    queryFn: ({ pageParam }) => api<Page>(`/products?page=${pageParam}&page_size=20&${baseQuery}&filters=${encodeURIComponent(filtersJson)}&hidden_in=${encodeURIComponent(hiddenIn)}`),
     getNextPageParam: (last) => (last.has_more ? last.page + 1 : undefined),
     refetchInterval: (query) => (query.state.data?.pages[0]?.syncing && !query.state.data?.pages[0]?.total ? 5000 : false),
   });
@@ -193,6 +197,7 @@ export default function Shop() {
             setCategory(cs);
           }}
         />
+        {isAdmin && <HiddenFilter cities={cities.data ?? []} value={hiddenIn} onChange={setHiddenIn} />}
       </View>
 
       {list.isLoading ? (
@@ -267,7 +272,11 @@ export default function Shop() {
                       <Text style={styles.colorsCount}>{match ? match.name : `${item.colors.length} färger`}</Text>
                     </View>
                   )}
-                  {isAdmin && nHidden > 0 && <Text style={styles.hiddenText}>Dold i {nHidden} {nHidden === 1 ? "butik" : "butiker"}</Text>}
+                  {isAdmin && nHidden > 0 && (
+                    <Text style={styles.hiddenText} numberOfLines={2} testID={`hidden-in-${item.part_no}`}>
+                      Dold i {cityNames(item.hidden_city_ids ?? [])}
+                    </Text>
+                  )}
                 </View>
               </Pressable>
             </Animated.View>
