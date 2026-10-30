@@ -1,11 +1,11 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, DELIVERY_LABELS, DeliveryMethod, Order } from "@/src/api";
+import { api, Delivery, DELIVERY_LABELS, DeliveryMethod, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useCart } from "@/src/cart";
 import { Button, EmptyState, ErrorBanner, Field, haptic, Icon, ScreenHeader } from "@/src/components/ui";
@@ -22,6 +22,8 @@ export default function Checkout() {
   const [method, setMethod] = useState<DeliveryMethod | null>(null);
   const [addr, setAddr] = useState({ name: "", address: "", postal_code: "", city: "" });
   const setA = (k: keyof typeof addr) => (v: string) => setAddr((p) => ({ ...p, [k]: v }));
+  const addresses = useQuery({ queryKey: ["addresses"], queryFn: () => api<Delivery[]>("/addresses") });
+  const [addrOpen, setAddrOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Order | null>(null);
@@ -51,6 +53,7 @@ export default function Checkout() {
       haptic("success");
       cart.clear();
       qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["addresses"] });
       setDone(order);
     } catch (e: any) {
       haptic("error");
@@ -156,6 +159,33 @@ export default function Checkout() {
             </View>
             {method === "ship" && (
               <View style={styles.addrBox} testID="delivery-address-form">
+                {!!addresses.data?.length && (
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Pressable testID="saved-address-toggle" onPress={() => setAddrOpen((v) => !v)} style={[styles.option, addrOpen && styles.optionActive]}>
+                      <Icon name="map-marker-check-outline" size={22} color={colors.brandSecondary} />
+                      <Text style={[styles.optionTitle, { flex: 1 }]}>Välj sparad adress</Text>
+                      <Icon name={addrOpen ? "chevron-up" : "chevron-down"} size={22} color={colors.onSurface} />
+                    </Pressable>
+                    {addrOpen &&
+                      addresses.data.map((a, i) => (
+                        <Pressable
+                          key={i}
+                          testID={`saved-address-${i}`}
+                          onPress={() => {
+                            haptic("selection");
+                            setAddr({ name: a.name ?? "", address: a.address ?? "", postal_code: a.postal_code ?? "", city: a.city ?? "" });
+                            setAddrOpen(false);
+                          }}
+                          style={({ pressed }) => [styles.addrOption, pressed && { backgroundColor: colors.surfaceTertiary }]}
+                        >
+                          {!!a.name && <Text style={styles.optionTitle}>{a.name}</Text>}
+                          <Text style={styles.optionSub}>
+                            {a.address}, {a.postal_code} {a.city}
+                          </Text>
+                        </Pressable>
+                      ))}
+                  </View>
+                )}
                 <Field label="Mottagare" optional testID="delivery-name-input" value={addr.name} onChangeText={setA("name")} placeholder={user?.company} />
                 <Field label="Adress" testID="delivery-address-input" value={addr.address} onChangeText={setA("address")} placeholder="Gata och nummer" />
                 <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" }}>
@@ -234,6 +264,7 @@ const useStyles = makeStyles((c) => ({
   optionTitle: { color: c.onSurface, fontFamily: fonts.bodyBold, fontSize: 15 },
   optionSub: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
   addrBox: { marginTop: spacing.md, padding: spacing.lg, paddingBottom: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
+  addrOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, minHeight: 48, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: c.divider },
   successIcon: { width: 96, height: 96, borderRadius: radius.lg, backgroundColor: c.success, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: spacing.xl },
   successTitle: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 36, textTransform: "uppercase", textAlign: "center" },
   successNum: { color: c.brandPrimary, fontFamily: fonts.display, fontSize: 22, textAlign: "center", marginTop: spacing.xs },

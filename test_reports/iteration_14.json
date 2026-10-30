@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 14: all requested features PASS. Backend 8/8 (saved shipping addresses: newest-first, dedupe incl. whitespace-stripped, max 10, invalid ship not saved, auth required; admin GET /orders/{id} + reply confirm). Frontend: order cards at 360/375px (Alla ordrar, Mina ordrar, home) show order number on a single line (height == font-size 24px), badge on same row, never truncated, date/company on next row. Home favourites + recent orders collapsed by default, expand/collapse works. Admin 'new' notification tap -> /order/<id>; order-reply-open-button opens reply-sheet; empty message validation shown; confirm succeeded (Resend NOT rate-limited this run) -> timeline Bekräftad, order-ready-button appears, button label 'Skicka nytt svar'. Alla ordrar order-reply-button-<num> still opens the same sheet; close works. Checkout: saved-address-toggle only after choosing delivery-ship, saved-address-0/1 fill name/address/postal/city correctly (incl. clearing name) and close the list. No deprecated Expo packages in touched files.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/orders", "issue": "Saved-address update is read-modify-write from the request's user doc; two concurrent ship orders by same user can lose one address (low impact)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Checkout", "issues": ["After 'Beställ igen' the success toast ('1 st lagda i varukorgen') lingers and overlaps the address form fields on the checkout screen (cosmetic, transient).", "No way to remove an outdated saved address (nice-to-have)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter14_saved_addresses_reply.py", "/app/backend/tests/seed_iter14_ui.py", "/app/test_reports/pytest/pytest_iter14.xml"],
+  "action_items": [
+    "Optional: use an atomic Mongo update (pipeline $set with $filter/$slice) for user.addresses to avoid lost updates under concurrency.",
+    "Optional: offer delete for saved addresses; consider dismissing reorder toast on navigation."
+  ],
+  "critical_code_review_comments": [
+    "routes/orders.py create_order: addresses saved after insert but before email send – fine; dedupe compares all 4 fields after strip – OK.",
+    "React Query cache is cleared on logout (auth.tsx) so ['addresses'] does not leak across users – OK.",
+    "Web preview note: Modal slide animation means clicks immediately after opening reply-sheet may land off-viewport in Playwright; wait ~1s (test artifact, not a bug)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter14_saved_addresses_reply.py", "/app/backend/tests/seed_iter14_ui.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100%"},
+  "seed_data_creation": "Used seed_iter13_ui.py + seed_iter14_ui.py (saved addresses + admin 'new' notification for UI13NEW); all cleaned up. Pytest creates a delivered+t14<tag>@resend.dev customer and 3 real orders (3 order emails + 1 reply email), removed in fixture teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run test_iter14 with -n 0 (pytest.ini enables xdist; module fixture shared across classes). UI seed: python tests/seed_iter13_ui.py && python tests/seed_iter14_ui.py; cleanup with seed_iter13_ui.py cleanup. Order emails count against Resend rate limit."
+}

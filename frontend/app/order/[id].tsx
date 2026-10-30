@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, deliveryText, Order } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { formatDate, useReorder } from "@/src/components/order-card";
+import { ReplySheet } from "@/src/components/reply-sheet";
 import { Button, EmptyState, haptic, Icon, IconName, ScreenHeader } from "@/src/components/ui";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { useToast } from "@/src/toast";
@@ -38,6 +39,7 @@ export default function OrderDetail() {
   const q = useQuery({ queryKey: ["order", id], queryFn: () => api<Order>(`/orders/${id}`) });
   const o = q.data;
   const [readying, setReadying] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
 
   const markReady = async () => {
     setReadying(true);
@@ -137,9 +139,17 @@ export default function OrderDetail() {
           {user?.role === "admin" && o.status === "confirmed" && (
             <Button title="Klarmarkera order" icon="package-variant-closed-check" testID="order-ready-button" onPress={markReady} loading={readying} style={{ marginTop: spacing.xl }} />
           )}
-          {user?.role === "admin" && (
-            <Button title="Bekräfta / neka i Alla ordrar" icon="clipboard-list" variant="secondary" testID="order-manage-button" onPress={() => router.push("/admin/orders")} style={{ marginTop: spacing.xl }} />
+          {user?.role === "admin" && (o.status ?? "new") !== "ready" && (
+            <Button
+              title={o.status === "confirmed" || o.status === "declined" ? "Skicka nytt svar" : "Bekräfta / neka order"}
+              icon="check-decagram"
+              variant={o.status === "confirmed" ? "secondary" : undefined}
+              testID="order-reply-open-button"
+              onPress={() => setReplyOpen(true)}
+              style={{ marginTop: spacing.md }}
+            />
           )}
+          {user?.role === "admin" && <ReplySheet order={replyOpen ? o : null} onClose={() => setReplyOpen(false)} onDone={() => { q.refetch(); qc.invalidateQueries({ queryKey: ["admin-orders"] }); }} />}
         </ScrollView>
       )}
     </View>

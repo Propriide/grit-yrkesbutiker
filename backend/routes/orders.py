@@ -147,6 +147,10 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
     except ValueError:
         raise HTTPException(400, "Kommentaren innehåller otillåtna ord (t.ex. om kortuppgifter eller lösenord). Ändra kommentaren och försök igen.")
     await db.orders.insert_one(dict(order))
+    if delivery["method"] == "ship":
+        addr = {k: delivery[k] for k in ("name", "address", "postal_code", "city")}
+        saved = [a for a in user.get("addresses") or [] if {k: a.get(k) for k in addr} != addr]
+        await db.users.update_one({"id": user["id"]}, {"$set": {"addresses": [addr, *saved][:10]}})
     try:
         await send_email(to=recipient, subject=subject, html=html, reply_to=user["email"])
         order["email_status"] = "sent"
@@ -163,6 +167,12 @@ async def create_order(body: OrderIn, request: Request, user: dict = Depends(cur
     for k in ("sent_to", "confirm_token", "order_value"):
         order.pop(k, None)
     return order
+
+
+@router.get("/addresses")
+async def my_addresses(user: dict = Depends(current_user)):
+    """Delivery addresses the user shipped to before, newest first."""
+    return user.get("addresses") or []
 
 
 @router.get("/orders")

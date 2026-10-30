@@ -76,3 +76,8 @@ Bygg en mobilapp för Android och iPhone. Vid registrering måste användaren an
 - Custom fonts: United Sans Cond (Bold/Black) headings, Gotham (Book/Medium) body.
 - Order status flow: Inväntar bekräftelse → Bekräftad / Nekad → Klar (POST /api/admin/orders/{id}/ready, in-app notification "Ordern är klar"; push postponed by user).
 - "Beställ igen" in expanded order card; home sections collapsible; checkout address row aligned.
+
+## Iteration 14 (fork 2)
+- Order card layout fixed (number + badge row, date below). Reply sheet extracted (src/components/reply-sheet.tsx) and usable on order detail for admins (notification → order → confirm/decline directly).
+- Home sections collapsed by default.
+- Saved shipping addresses (users.addresses, GET /api/addresses) with dropdown in checkout.

@@ -46,21 +46,20 @@ export function OrderCard({ order, showCompany, onReply, onReady }: { order: Ord
   return (
     <Pressable testID={`order-card-${order.order_number}`} onPress={() => setOpen(!open)} style={styles.card}>
       <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.num}>{order.order_number}</Text>
-          <Text style={styles.date}>
-            {formatDate(order.created_at)}
-            {showCompany ? `  ·  ${order.customer.company}` : ""}
-          </Text>
-        </View>
+        <Text style={styles.num}>{order.order_number}</Text>
         <View style={[styles.status, styles.statusPending, confirmed && styles.statusConfirmed, ready && styles.statusOk, declined && styles.statusFail]} testID={`order-status-${order.order_number}`}>
-          <Text style={[styles.statusText, status === "new" && { color: colors.onSurface }, declined && { color: colors.onError }, confirmed && { color: colors.onInfo }]}>
+          <Text numberOfLines={1} style={[styles.statusText, status === "new" && { color: colors.onSurface }, declined && { color: colors.onError }, confirmed && { color: colors.onInfo }]}>
             {STATUS_LABELS[status]}
           </Text>
         </View>
+        <View style={{ flex: 1 }} />
         <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.muted} />
       </View>
-      <Text style={styles.summary}>
+      <Text style={styles.date} numberOfLines={1}>
+        {formatDate(order.created_at)}
+        {showCompany ? `  ·  ${order.customer.company}` : ""}
+      </Text>
+      <Text style={styles.summary} numberOfLines={2}>
         {order.items.length} {order.items.length === 1 ? "artikel" : "artiklar"} · {qty} st{showCompany ? `  ·  ${order.customer.email}` : ""}
       </Text>
       {lastReply && (
@@ -134,9 +133,9 @@ export function OrderCard({ order, showCompany, onReply, onReady }: { order: Ord
 const useStyles = makeStyles((c) => ({
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.lg },
   cardTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  num: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 24 },
-  date: { color: c.muted, fontFamily: fonts.body, fontSize: 12 },
-  status: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm },
+  num: { color: c.onSurface, fontFamily: fonts.displayHeavy, fontSize: 24, flexShrink: 0 },
+  date: { color: c.muted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
+  status: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, flexShrink: 1 },
   statusOk: { backgroundColor: c.success },
   statusPending: { backgroundColor: c.surfaceTertiary },
   statusFail: { backgroundColor: c.error },

@@ -27,8 +27,8 @@ export default function HomeScreen() {
   const home = useQuery({ queryKey: ["home"], queryFn: () => api<Home>("/home") });
   const orders = useQuery({ queryKey: ["orders"], queryFn: () => api<Order[]>("/orders") });
   const favs = useFavorites();
-  const [showFavs, setShowFavs] = useState(true);
-  const [showOrders, setShowOrders] = useState(true);
+  const [showFavs, setShowFavs] = useState(false);
+  const [showOrders, setShowOrders] = useState(false);
   const h = home.data;
 
   return (
